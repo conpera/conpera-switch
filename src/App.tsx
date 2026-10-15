@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowUpRight, ArrowRight, ArrowLeftRight, Check, ChevronRight, CircleHelp, Coins, ExternalLink, KeyRound, LoaderCircle, LogOut, Plus, RefreshCw, RotateCcw, SquareTerminal, X } from 'lucide-react';
+import { ArrowUpRight, ArrowRight, ArrowLeftRight, Check, ChevronRight, CircleHelp, Coins, ExternalLink, KeyRound, LoaderCircle, LogOut, Plus, RefreshCw, RotateCcw, X } from 'lucide-react';
 import ConperaSelect from './ConperaSelect';
 import ChannelSelect, { isAdvancedChannel } from './ChannelSelect';
-import { ClaudeMark, ConperaMark } from './BrandMarks';
+import { ClaudeMark, CodexMark, ConperaMark } from './BrandMarks';
 import WelcomeScreen from './WelcomeScreen';
 import { AccountMenu, AnimatedBalance, Presence, Toast, cardHover, reducedMotion } from './Motion';
 import { isNative, edition, nativeCall, NativeError } from './native';
@@ -61,7 +61,7 @@ function readTools(): Record<Tool, ToolState> {
 }
 function Wordmark() { return <span className="brand-lockup"><ConperaMark/><span className="wordmark">CONPERA</span></span>; }
 function ToolIcon({ tool }: { tool: Tool }) {
-  return <div className={`tool-icon ${tool}`} aria-hidden="true">{tool === 'codex' ? <SquareTerminal size={25} strokeWidth={1.7}/> : <ClaudeMark size={27}/>}</div>;
+  return <div className={`tool-icon ${tool}`} aria-hidden="true">{tool === 'codex' ? <CodexMark size={27}/> : <ClaudeMark size={27}/>}</div>;
 }
 function Modal({ title, children, onClose, wide = false, exiting = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean; exiting?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
