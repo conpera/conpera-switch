@@ -1,6 +1,6 @@
 {
-  "name": "conpera-switch-demo",
-  "version": "0.1.0",
+  "name": "conpera-switch",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,10 @@
     "build:mac:beta": "npm run build && node scripts/build-mac.mjs --beta",
     "test:configuration": "node scripts/test-configuration.mjs",
     "test:account": "node scripts/test-account.mjs",
-    "test:beta-browser": "node scripts/verify-beta-browser.mjs"
+    "test:beta-browser": "node scripts/verify-beta-browser.mjs",
+    "build:mac:demo": "npm run build && node scripts/build-mac.mjs --demo",
+    "package:mac": "npm run build:mac && node scripts/package-mac.mjs",
+    "test:release-browser": "node scripts/verify-beta-browser.mjs --release"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -29,5 +32,11 @@
     "playwright": "^1.58.2",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/conpera/conpera-switch.git"
+  },
+  "homepage": "https://github.com/conpera/conpera-switch"
 }

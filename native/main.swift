@@ -11,7 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     private var authorizationWindows: [NSWindow] = []
     private var origin: URL?
     private var mainWindowLayout: MainWindowLayout?
-    #if SWITCH_BETA
+    #if SWITCH_NATIVE
     private let runtime = SwitchRuntime()
     #endif
 
@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         guard let resources = Bundle.main.resourceURL else {
             fail("无法找到应用资源，请重新构建 Conpera Switch。"); return
         }
-        #if SWITCH_BETA
+        #if SWITCH_NATIVE
         let service = LocalDemoServer(resourceRoot: resources.appendingPathComponent("web"), demoEnabled: false)
         #else
         let service = LocalDemoServer(resourceRoot: resources.appendingPathComponent("web"))
@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                     self.origin = url
                     self.showMainWindow(url: url)
                 case .failure(let error):
-                    self.fail("本地演示服务未能启动。\n\(error.localizedDescription)")
+                    self.fail("本地界面服务未能启动。\n\(error.localizedDescription)")
                 }
             }
         }
@@ -48,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let appMenu = NSMenu()
         appItem.submenu = appMenu
         appMenu.addItem(withTitle: "关于 Conpera Switch", action: #selector(showAbout), keyEquivalent: "").target = self
-        #if SWITCH_BETA
+        #if SWITCH_NATIVE
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "恢复 Codex 原机配置", action: #selector(restoreCodex), keyEquivalent: "").target = self
         appMenu.addItem(withTitle: "恢复 Claude Code 原机配置", action: #selector(restoreClaude), keyEquivalent: "").target = self
@@ -105,10 +105,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let configuration = WKWebViewConfiguration()
         // The embedded UI has no shared browser cookies or persistent web storage.
         configuration.websiteDataStore = .nonPersistent()
+        #if SWITCH_NATIVE
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
         #if SWITCH_BETA
-        configuration.applicationNameForUserAgent = "ConperaSwitchMac/0.2 ConperaSwitchBeta/0.2"
+        configuration.applicationNameForUserAgent = "ConperaSwitchMac/\(version) ConperaSwitchBeta/\(version)"
+        let title = "Conpera Switch — Beta"
+        #else
+        configuration.applicationNameForUserAgent = "ConperaSwitchMac/\(version) ConperaSwitchNative/\(version)"
+        let title = "Conpera Switch"
+        #endif
         configuration.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "switch")
-        let title = "Conpera Switch — 内测版"
         #else
         configuration.applicationNameForUserAgent = "ConperaSwitchMac/0.1"
         let title = "Conpera Switch — 本地演示"
@@ -190,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        #if SWITCH_BETA
+        #if SWITCH_NATIVE
         return nil
         #else
         guard webView === mainWebView, authorizationWindows.isEmpty,
@@ -222,7 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) {
         mainWebView?.configuration.userContentController.removeScriptMessageHandler(forName: "windowLayout")
-        #if SWITCH_BETA
+        #if SWITCH_NATIVE
         mainWebView?.configuration.userContentController.removeScriptMessageHandler(forName: "switch", contentWorld: .page)
         #endif
         server?.stop()
@@ -236,8 +242,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     @objc private func showAbout() {
         let alert = NSAlert()
         alert.messageText = "Conpera Switch"
-        #if SWITCH_BETA
-        alert.informativeText = "macOS 内测版 · 0.2.0\n\n仅向现有 test 分组用户与 admin 开放。账户凭据保存在钥匙串；配置切换前备份原文件。修改后请重启 Codex / Claude Code。可随时从应用菜单恢复原机配置。"
+        #if SWITCH_NATIVE
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
+        alert.informativeText = "macOS · \(version)\n\n连接您的 Conpera 账户。账户凭据保存在钥匙串；配置切换前备份原文件。修改后请重启 Codex / Claude Code。可随时从应用菜单恢复原机配置。\n\nCopyright © 2026 Conpera · MIT License"
         #else
         alert.informativeText = "macOS 原生应用 · 0.1.0 Demo\n\n白色界面、配置切换和账户授权流程演示。\n\n此版本使用模拟数据，不读取或修改 Claude / Codex 配置，不连接真实账户。关闭应用会清除演示会话与偏好。"
         #endif
@@ -255,7 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 }
 
 
-#if SWITCH_BETA
+#if SWITCH_NATIVE
 extension AppDelegate: WKScriptMessageHandlerWithReply {
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {

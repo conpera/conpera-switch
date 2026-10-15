@@ -11,13 +11,13 @@
   <key>CFBundleExecutable</key>
   <string>ConperaSwitch</string>
   <key>CFBundleIdentifier</key>
-  <string>ai.conpera.switch.demo</string>
+  <string>ai.conpera.switch</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>1.0.0</string>
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>CFBundleIconFile</key>
@@ -40,6 +40,6 @@
     <true/>
   </dict>
   <key>NSHumanReadableCopyright</key>
-  <string>Conpera Switch — local interface demo</string>
+  <string>Copyright © 2026 Conpera. MIT License.</string>
 </dict>
 </plist>
