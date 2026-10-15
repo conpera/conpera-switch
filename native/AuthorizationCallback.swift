@@ -147,7 +147,7 @@ final class AuthorizationCallback: AccountAuthorizationCallback, @unchecked Send
         } else if query["error"] == "access_denied", query["code"] == nil {
             accepted = .failure(AccountError("access_denied", "已取消授权，或此账户尚未获得内测权限。", status: 403))
         } else { client.respond(400); return }
-        client.respond(200)
+        client.respond(200, denied: query["error"] == "access_denied")
         finish(accepted, keeping: client.id)
     }
 
@@ -190,12 +190,64 @@ final class AuthorizationCallback: AccountAuthorizationCallback, @unchecked Send
                 else { self.receive() }
             }
         }
-        func respond(_ status: Int) {
+        func respond(_ status: Int, denied: Bool = false) {
             guard !closed, !responding else { return }
             responding = true
-            let body = status == 200 ? "授权结果已返回 Conpera Switch。现在可以关闭此页面。" : "无效的登录回调。请返回 Conpera Switch 重试。"
+            // Only fixed copy is rendered: never reflect callback codes or state.
+            let title: String
+            let message: String
+            let symbol: String
+            if status != 200 {
+                title = "授权链接无效"
+                message = "请返回 Conpera Switch，重新发起登录。"
+                symbol = "<path d=\"M12 7v6m0 4h.01\"/>"
+            } else if denied {
+                title = "授权已取消"
+                message = "您可以关闭此页面，或返回 Conpera Switch 重新授权。"
+                symbol = "<path d=\"M7 12h10\"/>"
+            } else {
+                title = "授权结果已返回"
+                message = "请返回 Conpera Switch 继续。<br>现在可以关闭此页面。"
+                symbol = "<path d=\"m5 12 4 4L19 6\"/>"
+            }
+            let body = """
+            <!doctype html>
+            <html lang="zh-CN">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>\(title) · Conpera Switch</title>
+              <style>
+                * { box-sizing: border-box; }
+                body { margin: 0; min-height: 100vh; min-height: 100svh; padding: 40px 24px;
+                  display: grid; place-items: center; background: #f8f8f7; color: #191919;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  -webkit-font-smoothing: antialiased; }
+                main { width: 100%; max-width: 420px; text-align: center; }
+                .symbol { display: grid; place-items: center; width: 64px; height: 64px;
+                  margin: 0 auto 28px; border: 1px solid #dededb; border-radius: 50%; background: #fff; }
+                svg { width: 30px; height: 30px; }
+                h1 { margin: 0; font-size: clamp(22px, 4vw, 26px); font-weight: 600;
+                  line-height: 1.4; letter-spacing: -.025em; }
+                p { margin: 14px 0 0; color: #6b6b68; font-size: 15px; line-height: 1.9;
+                  overflow-wrap: anywhere; }
+              </style>
+            </head>
+            <body>
+              <main aria-labelledby="result-title">
+                <div class="symbol" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round">\(symbol)</svg>
+                </div>
+                <h1 id="result-title">\(title)</h1>
+                <p>\(message)</p>
+              </main>
+            </body>
+            </html>
+            """
             let payload = Data(body.utf8)
-            let header = "HTTP/1.1 \(status) \(status == 200 ? "OK" : "Bad Request")\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: \(payload.count)\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: default-src 'none'; frame-ancestors 'none'\r\nConnection: close\r\n\r\n"
+            let reason = status == 200 ? "OK" : status == 413 ? "Payload Too Large" : "Bad Request"
+            let header = "HTTP/1.1 \(status) \(reason)\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(payload.count)\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\r\nConnection: close\r\n\r\n"
             connection.send(content: Data(header.utf8) + payload, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { [weak self] _ in self?.close() })
         }
         func close() {

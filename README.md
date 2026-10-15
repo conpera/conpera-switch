@@ -4,12 +4,14 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 ## 安装 1.0
 
-下载 [Conpera Switch 1.0.2](https://github.com/conpera/conpera-switch/releases/tag/v1.0.2) 的 `Conpera-Switch-1.0.2-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
+下载 [Conpera Switch 1.0.3](https://github.com/conpera/conpera-switch/releases/tag/v1.0.3) 的 `Conpera-Switch-1.0.3-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
 
 - 适用于 Apple Silicon，要求 macOS 13 或更高版本。运行应用无需安装 Node.js。
 - 当前安装包使用 ad-hoc 签名，尚未完成 Developer ID 签名与 Apple 公证，macOS 可能阻止首次启动。
 - 1.0 使用独立应用标识 `ai.conpera.switch`，与旧 Beta / Demo 可共存；请在正式版重新登录。
 - 线上接口向所有状态正常的 Conpera 用户与管理员开放；禁用账户和未知角色无法授权。
+
+1.0.3 为浏览器授权返回页增加简洁的图标与提示，分别显示授权结果返回、取消及链接无效的状态。
 
 ## 使用
 
@@ -34,7 +36,7 @@ npm ci
 npm run package:mac
 ```
 
-输出在 `release/1.0.2/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。
+输出在 `release/1.0.3/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。
 
 定向验证：
 
