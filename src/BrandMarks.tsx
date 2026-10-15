@@ -3,6 +3,11 @@ export function ConperaMark({ size = 28 }: { size?: number }) {
   return <img className="conpera-mark" src="/favicon.svg" width={size} height={size} alt="" aria-hidden="true" />;
 }
 
+// Codex's vector mark is bundled locally so it also works offline.
+export function CodexMark({ size = 27 }: { size?: number }) {
+  return <img className="codex-mark" src="/codex.svg" width={size} height={size} alt="" aria-hidden="true" />;
+}
+
 // Claude mark reused from the Conpera web interface.
 export function ClaudeMark({ size = 16 }: { size?: number }) {
   return (
