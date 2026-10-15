@@ -107,8 +107,6 @@ export default function ConfigurationEditor({ tool, onClose, onSaved }: Props) {
           {tool === 'codex' ? <>
             {select('model_reasoning_effort', '思考强度', ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(value => [value, value]))}
             {input('model_context_window', '上下文窗口 · tokens', '使用模型默认值', true)}
-            {input('model_auto_compact_token_limit', '自动压缩阈值 · tokens', '使用模型默认值', true)}
-            {select('model_verbosity', '回答详细程度', [['low', '简洁'], ['medium', '适中'], ['high', '详细']])}
           </> : <>
             {select('alwaysThinkingEnabled', '扩展思考', [['true', '开启'], ['false', '关闭']])}
             {input('maxOutputTokens', '最大输出长度 · tokens', '使用模型默认值', true)}

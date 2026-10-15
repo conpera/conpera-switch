@@ -4,14 +4,14 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 ## 安装 1.2
 
-下载 [Conpera Switch 1.2.0](https://github.com/conpera/conpera-switch/releases/tag/v1.2.0) 的 `Conpera-Switch-1.2.0-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
+下载 [Conpera Switch 1.2.1](https://github.com/conpera/conpera-switch/releases/tag/v1.2.1) 的 `Conpera-Switch-1.2.1-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
 
 - 适用于 Apple Silicon，要求 macOS 13 或更高版本。运行应用无需安装 Node.js。
 - 当前安装包使用 ad-hoc 签名，尚未完成 Developer ID 签名与 Apple 公证，macOS 可能阻止首次启动。
 - 1.0 使用独立应用标识 `ai.conpera.switch`，与旧 Beta / Demo 可共存；请在正式版重新登录。
 - 线上接口向所有状态正常的 Conpera 用户与管理员开放；禁用账户和未知角色无法授权。
 
-1.2.0 新增应用内检查更新、下载、签名校验和安装重启；保留 Codex / Claude Code 常用设置与配置原文编辑。
+1.2.1 将 Codex 常用设置精简为模型、思考强度和上下文窗口；其他设置仍可在配置原文中编辑。支持应用内检查更新、下载、签名校验和安装重启。
 
 ## 使用
 
@@ -39,7 +39,7 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 点击 Codex / Claude Code 卡片右上角的设置图标；未登录时，也可从欢迎页的「本机配置」进入。
 
-- **常用设置**：Codex 提供模型、思考强度、上下文窗口、自动压缩阈值和回答详细程度；Claude Code 提供模型、扩展思考和最大输出长度。留空或选择默认会移除相应覆盖。
+- **常用设置**：Codex 仅提供模型、思考强度和上下文窗口；Claude Code 提供模型、扩展思考和最大输出长度。留空或选择默认会移除相应覆盖。
 - **配置原文**：直接编辑 TOML / JSON，与表单双向同步；不会修改 Codex 的 `auth.json`。已识别的密钥和敏感字段以占位符显示，必须保留；包含敏感字段的 TOML 内联容器整体保护。Conpera 启用时，连接地址与密钥继续由首页管理。
 - 保存前校验格式、检查文件是否在外部变化；保存后读回核验。可以撤销上次保存，恢复之前的文件内容和权限。编辑期间的未保存修改会在关闭或重新读取前提醒。
 - 设置仅写入本机用户配置；保存后重启对应客户端。项目配置、环境变量、管理员策略和模型能力可能影响实际生效。应用未代替 CLI 验证每种模型与参数组合。
@@ -57,7 +57,7 @@ npm ci
 npm run package:mac
 ```
 
-输出在 `release/1.2.0/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
+输出在 `release/1.2.1/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
 
 定向验证：
 
