@@ -2,16 +2,16 @@
 
 Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看余额与本人密钥，并切换或恢复 Codex / Claude Code 的本机配置。
 
-## 安装 1.0
+## 安装 1.1
 
-下载 [Conpera Switch 1.0.4](https://github.com/conpera/conpera-switch/releases/tag/v1.0.4) 的 `Conpera-Switch-1.0.4-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
+下载 [Conpera Switch 1.1.0](https://github.com/conpera/conpera-switch/releases/tag/v1.1.0) 的 `Conpera-Switch-1.1.0-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
 
 - 适用于 Apple Silicon，要求 macOS 13 或更高版本。运行应用无需安装 Node.js。
 - 当前安装包使用 ad-hoc 签名，尚未完成 Developer ID 签名与 Apple 公证，macOS 可能阻止首次启动。
 - 1.0 使用独立应用标识 `ai.conpera.switch`，与旧 Beta / Demo 可共存；请在正式版重新登录。
 - 线上接口向所有状态正常的 Conpera 用户与管理员开放；禁用账户和未知角色无法授权。
 
-1.0.4 将 Codex 卡片图标更新为 Codex 品牌标识。
+1.1.0 新增 Codex / Claude Code 常用设置表单与配置原文编辑。
 
 ## 使用
 
@@ -25,7 +25,20 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 默认配置位置为 `~/.codex/config.toml`、`~/.claude/settings.json`；支持应用进程收到的绝对 `CODEX_HOME` / `CLAUDE_CONFIG_DIR`。Finder 启动不会自动继承终端环境变量。切换前保留原文件备份，检测到外部修改时停止覆盖。备份位于 `~/Library/Application Support/Conpera Switch/configuration`。退出登录会撤销桌面会话，保留已应用配置；离线也可从菜单恢复。
 
-应用不会安装 CLI 或改变模型选择。模型是否可用仍取决于账户渠道：此前真实测试中 Claude Code 调用成功，所选 Codex 特惠渠道返回上游错误。配置写入成功不代表模型运行已通过。详细历史证据见 [Beta 验证记录](docs/BETA.md)。
+应用不会安装 CLI。模型是否可用仍取决于账户渠道：此前真实测试中 Claude Code 调用成功，所选 Codex 特惠渠道返回上游错误。配置写入成功不代表模型运行已通过。详细历史证据见 [Beta 验证记录](docs/BETA.md)。
+
+## 配置细节
+
+点击 Codex / Claude Code 卡片右上角的设置图标；未登录时，也可从欢迎页的「本机配置」进入。
+
+- **常用设置**：Codex 提供模型、思考强度、上下文窗口、自动压缩阈值和回答详细程度；Claude Code 提供模型、扩展思考和最大输出长度。留空或选择默认会移除相应覆盖。
+- **配置原文**：直接编辑 TOML / JSON，与表单双向同步；不会修改 Codex 的 `auth.json`。已识别的密钥和敏感字段以占位符显示，必须保留；包含敏感字段的 TOML 内联容器整体保护。Conpera 启用时，连接地址与密钥继续由首页管理。
+- 保存前校验格式、检查文件是否在外部变化；保存后读回核验。可以撤销上次保存，恢复之前的文件内容和权限。编辑期间的未保存修改会在关闭或重新读取前提醒。
+- 设置仅写入本机用户配置；保存后重启对应客户端。项目配置、环境变量、管理员策略和模型能力可能影响实际生效。应用未代替 CLI 验证每种模型与参数组合。
+
+支持 UTF-8 配置，编辑上限为 512 KiB。Codex 使用保守的 TOML 编辑器，目前支持标量、单行数组、内联表及普通表；多行值和数组表会明确拒绝，保留原文件。Claude Code 原文保存时会规范化 JSON 缩进和键顺序。
+
+参数依据 [Codex 配置参考](https://developers.openai.com/codex/config-reference)、[Claude Code 设置参考](https://code.claude.com/docs/en/settings-reference)和[环境变量参考](https://code.claude.com/docs/en/env-vars)。
 
 ## 从源码构建
 
@@ -36,7 +49,7 @@ npm ci
 npm run package:mac
 ```
 
-输出在 `release/1.0.4/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。
+输出在 `release/1.1.0/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。
 
 定向验证：
 
@@ -45,9 +58,10 @@ npm run build
 npm run test:account
 npm run test:configuration
 npm run test:release-browser
+npm run test:settings-browser
 ```
 
-浏览器检查需要已安装 Google Chrome，使用隔离身份和模拟原生桥接，阻止外网访问。Swift 测试使用临时目录，不读取或修改用户真实 CLI 配置。
+浏览器检查需要已安装 Google Chrome，使用隔离身份和模拟原生桥接，阻止外网访问。Swift 测试使用临时目录，不读取或修改用户真实 CLI 配置。设置界面检查通过真实 Swift 桥接写入隔离目录，拒绝账户网络请求和钥匙串访问。
 
 ## 本地 Demo
 

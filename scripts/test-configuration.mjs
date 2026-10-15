@@ -16,7 +16,7 @@ async function run(command, args) {
 }
 try {
   const binary = join(scratch, 'configuration-tests');
-  await run('swiftc', ['-swift-version', '6', join(project, 'native/ConfigurationManager.swift'),
+  await run('swiftc', ['-swift-version', '6', join(project, 'native/ConfigurationManager.swift'), join(project, 'native/ConfigurationDocument.swift'),
     join(project, 'native/tests/configuration/main.swift'), '-o', binary]);
   await run(binary, [scratch]);
 } finally {

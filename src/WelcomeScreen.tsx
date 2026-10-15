@@ -8,10 +8,11 @@ type WelcomeScreenProps = {
   onLogin: () => void;
   onCancel: () => void;
   onContinueHere?: () => void;
+  onSettings?: (tool: 'codex' | 'claude') => void;
   edition?: string;
 };
 
-export default function WelcomeScreen({ phase, error, onLogin, onCancel, onContinueHere, edition = 'DEMO' }: WelcomeScreenProps) {
+export default function WelcomeScreen({ phase, error, onLogin, onCancel, onContinueHere, onSettings, edition = 'DEMO' }: WelcomeScreenProps) {
   const connecting = phase === 'connecting';
   const connected = phase === 'connected';
 
@@ -30,6 +31,7 @@ export default function WelcomeScreen({ phase, error, onLogin, onCancel, onConti
           {connecting && <><button className="welcome-cancel" onClick={onCancel}>取消连接</button>{onContinueHere && <button className="welcome-fallback" onClick={onContinueHere}>在此继续<ArrowUpRight size={12}/></button>}</>}
           {connected && <span>正在进入工作台</span>}
         </div>
+        {onSettings && !connecting && !connected && <div className="welcome-local-settings"><span>本机配置</span><button onClick={() => onSettings('codex')} aria-label="Codex 配置细节">Codex</button><button onClick={() => onSettings('claude')} aria-label="Claude Code 配置细节">Claude Code</button></div>}
       </div>
     </div>
   </main></div>;

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowUpRight, ArrowRight, ArrowLeftRight, Check, ChevronRight, CircleHelp, Coins, ExternalLink, KeyRound, LoaderCircle, LogOut, Plus, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { ArrowUpRight, ArrowRight, ArrowLeftRight, Check, ChevronRight, CircleHelp, Coins, ExternalLink, KeyRound, LoaderCircle, LogOut, Plus, RefreshCw, RotateCcw, Settings2, X } from 'lucide-react';
 import ConperaSelect from './ConperaSelect';
 import ChannelSelect, { isAdvancedChannel } from './ChannelSelect';
 import { ClaudeMark, CodexMark, ConperaMark } from './BrandMarks';
 import WelcomeScreen from './WelcomeScreen';
+import ConfigurationEditor from './ConfigurationEditor';
 import { AccountMenu, AnimatedBalance, Presence, Toast, cardHover, reducedMotion } from './Motion';
 import { isNative, edition, nativeCall, NativeError } from './native';
 
@@ -123,14 +124,15 @@ function Authorization() {
 
 function Dashboard() {
   const [welcomeVisible, setWelcomeVisible] = useState(true);
+  const [settingsTool, setSettingsTool] = useState<Tool | null>(null);
   const [welcomePhase, setWelcomePhase] = useState<'ready' | 'connected'>('ready');
   const welcomeRef = useRef(welcomeVisible);
   welcomeRef.current = welcomeVisible;
   const welcomeTimer = useRef<number>(undefined);
   useEffect(() => {
     const native = window as Window & { webkit?: { messageHandlers?: { windowLayout?: { postMessage: (layout: string) => void } } } };
-    native.webkit?.messageHandlers?.windowLayout?.postMessage(welcomeVisible ? 'welcome' : 'dashboard');
-  }, [welcomeVisible]);
+    native.webkit?.messageHandlers?.windowLayout?.postMessage(settingsTool ? 'settings' : welcomeVisible ? 'welcome' : 'dashboard');
+  }, [welcomeVisible, settingsTool]);
   const [tools, setTools] = useState(readTools);
   const [keys, setKeys] = useState<DemoKey[]>(isNative ? [] : initialKeys);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -389,7 +391,7 @@ function Dashboard() {
     catch (error) { if (isNative && error instanceof ApiError && error.code === 'logout_remote_unconfirmed') { setSession(null); setKeys([]); setChannels([]); setBalanceCurrency(null); setTools(readTools()); setBalance(null); setSessionStatus('guest'); setWelcomePhase('ready'); setWelcomeVisible(true); setLoginError((error as Error).message || '本机已退出，远端撤销未完成。'); } else notify((error as Error).message || '暂时无法退出，请重试'); } finally { accountLocked.current = false; setAccountBusy(false); }
   }
   return <>
-    {welcomeVisible ? sessionStatus === 'loading' ? <main className="startup-screen" aria-label="正在载入 Conpera"><Wordmark/><span className="startup-line"/></main> : <WelcomeScreen phase={loginBusy ? 'connecting' : welcomePhase} error={loginError || (sessionStatus === 'offline' ? '账户服务暂不可用，请重试。' : '')} onLogin={() => void startLogin()} onCancel={closeLogin} onContinueHere={isNative ? undefined : continueHere} edition={edition}/> : <div className="app-shell view-enter">
+    {welcomeVisible ? sessionStatus === 'loading' ? <main className="startup-screen" aria-label="正在载入 Conpera"><Wordmark/><span className="startup-line"/></main> : <WelcomeScreen phase={loginBusy ? 'connecting' : welcomePhase} error={loginError || (sessionStatus === 'offline' ? '账户服务暂不可用，请重试。' : '')} onLogin={() => void startLogin()} onCancel={closeLogin} onContinueHere={isNative ? undefined : continueHere} onSettings={isNative ? setSettingsTool : undefined} edition={edition}/> : <div className="app-shell view-enter">
     <header className="topbar">
       <a className="brand" href="/" aria-label="Conpera Switch 首页"><Wordmark/><span className="product-name">Switch</span></a>
       <div className="topbar-actions">
@@ -404,7 +406,7 @@ function Dashboard() {
           const state = tools[tool]; const active = state.mode === 'conpera'; const selected = keys.find(k => k.id === state.keyId) || (isNative ? { id: '', suffix: '—', name: '暂无可用密钥', channel: '', channelId: undefined } : initialKeys.find(k => k.tool === tool)!);
           const waiting = busy === tool || busy === 'all';
           return <article className={`tool-card ${active ? 'is-active' : ''} ${waiting ? 'is-busy' : ''}`} key={tool} aria-busy={waiting} data-testid={`tool-${tool}`} {...cardHover}>
-            <div className="card-top"><ToolIcon tool={tool}/><span className={`status ${active ? 'active' : ''}`} title={waiting ? '切换中' : active ? 'Conpera 已启用' : state.mode === 'conflict' ? '配置已在外部修改' : state.mode === 'unavailable' ? '配置未读取' : '原机配置'}>{waiting ? <LoaderCircle className="spin" size={14}/> : <i/>}<span className="sr-only">{waiting ? '切换中' : active ? 'Conpera 已启用' : state.mode === 'conflict' ? '配置已在外部修改' : state.mode === 'unavailable' ? '配置未读取' : '原机配置'}</span></span></div>
+            <div className="card-top"><ToolIcon tool={tool}/><div className="tool-card-actions">{isNative && <button className="icon-button tool-settings" aria-label={`${toolNames[tool]} 配置细节`} title="配置细节" disabled={!!busy || accountBusy} onClick={() => setSettingsTool(tool)}><Settings2 size={16}/></button>}<span className={`status ${active ? 'active' : ''}`} title={waiting ? '切换中' : active ? 'Conpera 已启用' : state.mode === 'conflict' ? '配置已在外部修改' : state.mode === 'unavailable' ? '配置未读取' : '原机配置'}>{waiting ? <LoaderCircle className="spin" size={14}/> : <i/>}<span className="sr-only">{waiting ? '切换中' : active ? 'Conpera 已启用' : state.mode === 'conflict' ? '配置已在外部修改' : state.mode === 'unavailable' ? '配置未读取' : '原机配置'}</span></span></div></div>
             <h2 className="card-title">{toolNames[tool]}</h2>
             <div className={`switch-track ${active ? 'at-conpera' : state.mode === 'original' ? 'at-original' : 'at-unknown'}`} aria-label={`${toolNames[tool]} 配置来源`}>
               <span className="switch-thumb" aria-hidden="true"/>
@@ -461,6 +463,7 @@ function Dashboard() {
       {!isNative && <form className="add-key" onSubmit={e => { e.preventDefault(); addKey(); }}><div className="add-key-fields"><label>名称<input value={newName} maxLength={24} onChange={e => { setNewName(e.target.value); setKeyError(''); }} placeholder="新密钥"/></label><div className="field"><span>渠道</span><ConperaSelect className="form-select" label="新密钥渠道" value={newChannel} onChange={setNewChannel} options={['标准渠道', '优先渠道'].map(channel => ({ value: channel, label: channel }))}/></div></div>{keyError && <p role="alert" className="error-text">{keyError}</p>}<button type="submit" className="button block">添加并选择<Plus size={14}/></button></form>}
       <p className="modal-footnote">{isNative ? '密钥从当前账户同步，仅显示尾号；可在 Conpera 网站管理。' : '仅演示，不接收真实 API Key。'}</p>
     </Modal>}</Presence>
+    {settingsTool && <ConfigurationEditor key={settingsTool} tool={settingsTool} onClose={() => setSettingsTool(null)} onSaved={() => { void nativeCall<NativeStatus>('status').then(adoptStatus).catch(() => setConfigurationError('无法核验本机配置状态，请重新读取。')); }}/>}
     <Presence visible={help}><Modal title={isNative ? '使用说明' : '演示说明'} onClose={() => setHelp(false)}><p className="modal-copy">{isNative ? <>连接您的 Conpera 账户，选择本人密钥。<br/>切换前保存原机备份，写入后请重启对应客户端。<br/>检测到外部修改时会停止覆盖。退出登录后可从应用菜单恢复原机配置。</> : <>配置、密钥和余额均为演示数据。<br/>不会读取或修改本机配置。</>}</p><button className="button primary block" onClick={() => setHelp(false)}>知道了<Check size={15}/></button></Modal></Presence>
   </>;
 }

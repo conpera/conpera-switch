@@ -51,6 +51,29 @@ actor SwitchRuntime {
         case "balance": return try await account.balance()
         case "keys": return try await account.keys()
         case "status": return try Self.publicStatus(manager().status())
+        case "configurationDetails", "undoConfiguration":
+            let expected: Set<String> = action == "configurationDetails" ? ["tool"] : ["tool", "revision"]
+            guard Set(payload.keys) == expected, let tool = payload["tool"] as? String,
+                  ["codex", "claude"].contains(tool) else { throw Self.invalidRequest() }
+            try begin(action)
+            defer { mutation = nil }
+            if action == "configurationDetails" { return try manager().configurationDetails(tool: tool) }
+            guard let revision = payload["revision"] as? String, revision.utf8.count == 64 else { throw Self.invalidRequest() }
+            return try manager().undoConfiguration(tool: tool, revision: revision)
+        case "previewConfiguration", "saveConfiguration":
+            let expected: Set<String> = action == "previewConfiguration" ? ["tool", "content", "updates"] : ["tool", "content", "revision"]
+            guard Set(payload.keys) == expected, let tool = payload["tool"] as? String,
+                  ["codex", "claude"].contains(tool), let content = payload["content"] as? String,
+                  content.utf8.count <= ConfigurationDocument.maximumSize else { throw Self.invalidRequest() }
+            try begin(action)
+            defer { mutation = nil }
+            if action == "previewConfiguration" {
+                guard let updates = payload["updates"] as? [String: String] else { throw Self.invalidRequest() }
+                let next = try ConfigurationDocument.updating(content, tool: tool, updates: updates)
+                return ["content": next, "fields": try ConfigurationDocument.fields(next, tool: tool)]
+            }
+            guard let revision = payload["revision"] as? String, revision.utf8.count == 64 else { throw Self.invalidRequest() }
+            return try manager().saveConfiguration(tool: tool, revision: revision, content: content)
         case "cancelLogin":
             if let mutation, mutation != "login" { throw Self.busy() }
             await account.cancelLogin()

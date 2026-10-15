@@ -80,7 +80,7 @@ try {
     '-o', executable,
     path.join(projectRoot, 'native', 'main.swift'),
     path.join(projectRoot, 'native', 'LocalDemoServer.swift'),
-    ...(native ? ['AccountClient.swift', 'CredentialStore.swift', 'AuthorizationCallback.swift', 'ConfigurationManager.swift', 'SwitchRuntime.swift'].map(name => path.join(projectRoot, 'native', name)) : []),
+    ...(native ? ['AccountClient.swift', 'CredentialStore.swift', 'AuthorizationCallback.swift', 'ConfigurationManager.swift', 'ConfigurationDocument.swift', 'SwitchRuntime.swift'].map(name => path.join(projectRoot, 'native', name)) : []),
   ]);
 
   const iconGenerator = path.join(scratch, 'generate-icon');

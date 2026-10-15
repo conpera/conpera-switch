@@ -4,7 +4,7 @@ import WebKit
 // The packaged UI is the only trusted bridge caller. Account credentials and
 // configuration secrets remain in native code, outside the web view.
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
-    private enum MainWindowLayout: String { case welcome, dashboard }
+    private enum MainWindowLayout: String { case welcome, dashboard, settings }
     private var server: LocalDemoServer?
     private var mainWindow: NSWindow?
     private var mainWebView: WKWebView?
@@ -160,6 +160,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             contentSize = NSSize(width: side, height: side)
             let minimumSide = min(400, side)
             minimum = NSSize(width: minimumSide, height: minimumSide)
+        case .settings:
+            contentSize = NSSize(width: min(880, maximum.width), height: min(740, maximum.height))
+            minimum = NSSize(width: min(480, contentSize.width), height: min(500, contentSize.height))
         case .dashboard:
             contentSize = NSSize(width: min(1000, maximum.width), height: min(460, maximum.height))
             minimum = NSSize(width: min(880, contentSize.width), height: min(430, contentSize.height))

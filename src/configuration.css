@@ -1,0 +1,37 @@
+.tool-card-actions { display: flex; align-items: center; gap: 12px; }
+.tool-settings { width: 24px; height: 26px; }
+.modal.configuration-editor { width: 640px; padding: 28px; }
+.configuration-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.configuration-heading { display: flex; align-items: center; gap: 12px; }
+.configuration-editor .configuration-heading h2 { font-size: 21px; line-height: 1.4; }
+.configuration-heading p { margin-top: 5px; color: #969696; font-size: 11px; }
+.configuration-tabs { display: flex; gap: 22px; border-bottom: 1px solid #ececec; margin-bottom: 24px; }
+.configuration-tabs button { padding: 0 0 12px; border-bottom: 2px solid transparent; background: transparent; color: #999; font-size: 12px; }
+.configuration-tabs button[aria-pressed="true"] { border-bottom-color: #222; color: #222; }
+.configuration-tabs span { margin-left: 4px; font: 9px var(--mono); color: #999; }
+.configuration-content { min-width: 0; padding: 0; margin: 0; border: 0; }
+.configuration-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 16px; }
+.configuration-field { display: grid; gap: 9px; min-width: 0; color: #666; font-size: 11px; }
+.configuration-field:first-child { grid-column: 1 / -1; }
+.configuration-field input, .configuration-field select { width: 100%; min-width: 0; height: 40px; padding: 0 11px; border: 1px solid #e8e8e8; border-radius: 0; background: #fafafa; color: #222; font: inherit; font-size: 12px; }
+.configuration-field input::placeholder { color: #aaa; }
+.configuration-field input:focus, .configuration-field select:focus, .configuration-source:focus { outline: 1px solid #777; outline-offset: 1px; }
+.configuration-hint { margin: 12px 0 0; color: #929292; font-size: 10px; line-height: 1.8; }
+.configuration-fields > .configuration-hint { grid-column: 1 / -1; margin-top: -4px; }
+.configuration-source { display: block; width: 100%; height: 270px; min-height: 170px; resize: vertical; padding: 14px; border: 1px solid #e5e5e5; border-radius: 0; background: #fafafa; color: #333; font: 11px/1.8 var(--mono); tab-size: 2; }
+.configuration-loading { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 180px; color: #999; font-size: 12px; }
+.configuration-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; padding-top: 18px; border-top: 1px solid #eee; }
+.configuration-footer > div { display: flex; align-items: center; gap: 8px; }
+.configuration-footer .text-button { margin: 0; padding: 0; min-height: 32px; }
+.configuration-success { display: flex; align-items: center; gap: 7px; margin-top: 14px; color: #187c72; font-size: 11px; line-height: 1.7; }
+.configuration-confirm { margin-top: 20px; padding: 16px; background: #f5f5f5; font-size: 12px; }
+.configuration-confirm > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.welcome-local-settings { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px; color: #aaa; font-size: 10px; }
+.welcome-local-settings button { padding: 6px 0; background: transparent; color: #777; font-size: 10px; }
+.welcome-local-settings button:hover { color: #171717; }
+@media (max-width: 480px) {
+  .modal.configuration-editor { padding: 22px; }
+  .configuration-fields { grid-template-columns: 1fr; gap: 16px; }
+  .configuration-footer { flex-wrap: wrap; }
+  .configuration-footer > .primary { margin-left: auto; }
+}

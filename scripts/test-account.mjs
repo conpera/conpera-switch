@@ -21,7 +21,7 @@ try {
   await run('/usr/bin/xcrun', ['swiftc', '-swift-version', '5',
     '-framework', 'AppKit', '-framework', 'Network', '-framework', 'CryptoKit', '-framework', 'Security',
     join(project, 'native/AccountClient.swift'), join(project, 'native/CredentialStore.swift'),
-    join(project, 'native/AuthorizationCallback.swift'), join(project, 'native/ConfigurationManager.swift'),
+    join(project, 'native/AuthorizationCallback.swift'), join(project, 'native/ConfigurationManager.swift'), join(project, 'native/ConfigurationDocument.swift'),
     join(project, 'native/SwitchRuntime.swift'), join(project, 'native/tests/account/main.swift'),
     '-o', executable], 60_000);
   await run(executable, [scratch], 45_000);
