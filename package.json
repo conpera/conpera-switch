@@ -1,0 +1,33 @@
+{
+  "name": "conpera-switch-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"node server/server.mjs\" \"vite --host 127.0.0.1 --port 4317 --strictPort\"",
+    "build": "tsc -b && vite build",
+    "build:mac": "npm run build && node scripts/build-mac.mjs",
+    "preview": "node server/server.mjs",
+    "test": "node --test server/auth.test.mjs",
+    "test:native": "node scripts/test-native.mjs",
+    "test:browser": "node scripts/verify-browser.mjs",
+    "build:mac:beta": "npm run build && node scripts/build-mac.mjs --beta",
+    "test:configuration": "node scripts/test-configuration.mjs",
+    "test:account": "node scripts/test-account.mjs",
+    "test:beta-browser": "node scripts/verify-beta-browser.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "concurrently": "^9.1.2",
+    "playwright": "^1.58.2",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

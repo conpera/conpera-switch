@@ -1,0 +1,114 @@
+:root { --ease-out: cubic-bezier(.22, 1, .36, 1); --ease-smooth: cubic-bezier(.4, 0, .2, 1); }
+button, a { transition: color 180ms ease, background 180ms ease, box-shadow 240ms ease, opacity 180ms ease, transform 240ms var(--ease-out); }
+button:active:not(:disabled) { transform: scale(.97); }
+button svg, a svg { transition: transform 320ms var(--ease-out), color 200ms ease; }
+.brand .wordmark { transition: letter-spacing 400ms var(--ease-out); }
+.brand:hover .wordmark { letter-spacing: 5.8px; }
+.brand .product-name { transition: color 220ms ease; }
+.brand:hover .product-name { color: #333; }
+.icon-button:hover svg:not(.spin) { transform: rotate(-9deg); }
+.icon-button[aria-label="关于此演示"]:hover svg { transform: rotate(12deg); }
+.icon-button[aria-label="关闭弹窗"]:hover svg { transform: rotate(90deg); }
+.view-enter .topbar { animation: reveal-up 650ms var(--ease-out) both; }
+.view-enter .tool-card, .view-enter .account-panel { animation: card-arrive 750ms var(--ease-out) backwards; }
+.view-enter .tool-card:first-child { animation-delay: 80ms; }
+.view-enter .tool-card:nth-child(2) { animation-delay: 160ms; }
+.view-enter .account-panel { animation-delay: 240ms; }
+.tool-card, .account-panel { position: relative; isolation: isolate; }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .tool-card::before, .account-panel::before {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    content: '';
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 160ms ease;
+    background:
+      radial-gradient(circle at var(--card-hover-x, 50%) var(--card-hover-y, 50%), rgba(112, 184, 255, .20) 0, rgba(86, 150, 205, .12) 4.8rem, rgba(17, 24, 39, .055) 9.5rem, transparent 14rem),
+      radial-gradient(circle, rgba(17, 24, 39, .13) 0 1.1px, transparent 1.75px),
+      radial-gradient(circle, rgba(255, 255, 255, .26) 0 .9px, transparent 1.55px);
+    background-position: 0 0, 0 0, 5px 5px;
+    background-size: 100% 100%, 10px 10px, 10px 10px;
+    -webkit-mask-image: radial-gradient(circle at var(--card-hover-x, 50%) var(--card-hover-y, 50%), rgba(0, 0, 0, .72) 0, rgba(0, 0, 0, .40) 5.5rem, rgba(0, 0, 0, .12) 9.5rem, transparent 14rem);
+    mask-image: radial-gradient(circle at var(--card-hover-x, 50%) var(--card-hover-y, 50%), rgba(0, 0, 0, .72) 0, rgba(0, 0, 0, .40) 5.5rem, rgba(0, 0, 0, .12) 9.5rem, transparent 14rem);
+  }
+  .tool-card[data-pixel-hover="true"]::before, .account-panel[data-pixel-hover="true"]::before { opacity: .48; }
+}
+.status i { transition: background 350ms ease, box-shadow 350ms ease; animation: status-appear 450ms var(--ease-out); }
+.status.active i { box-shadow: 0 0 0 3px #187c720b; }
+.is-busy .tool-icon { animation: working-breathe 900ms ease-in-out infinite alternate; }
+.switch-track { position: relative; isolation: isolate; }
+.switch-thumb { position: absolute; inset: 3px auto 3px 3px; width: calc(50% - 4.5px); background: #fff; box-shadow: 0 2px 6px #0000000f; transition: transform 480ms var(--ease-out), background 350ms ease, box-shadow 350ms ease; pointer-events: none; }
+.at-conpera .switch-thumb { transform: translateX(calc(100% + 3px)); background: #202020; box-shadow: 0 3px 8px #00000012; }
+.switch-track button { position: relative; z-index: 1; transition: color 250ms ease, opacity 200ms ease, transform 200ms var(--ease-out); }
+.switch-track button.selected, .switch-track button.conpera-selected, .switch-track button.conpera-selected:hover:not(:disabled) { background: transparent; box-shadow: none; }
+.switch-track button svg { animation: check-appear 380ms var(--ease-out); }
+.key-edit code { animation: text-reveal 320ms var(--ease-out); transition: color 220ms ease; }
+.key-edit:hover > svg:first-child { transform: rotate(-16deg); }
+.key-edit:hover > svg:last-child { transform: translateX(3px); }
+.login-link:hover svg { transform: translate(2px, -2px); }
+.button:hover:not(:disabled) > svg:not(.spin) { transform: translateX(2px); }
+.button.primary:hover:not(:disabled) { box-shadow: 0 5px 16px #00000012; }
+.balance-number > .balance-value { color: inherit; font: inherit; letter-spacing: inherit; }
+.balance-number { transition: opacity 250ms ease, color 250ms ease; }
+.is-refreshing .balance-number { animation: working-breathe 700ms ease-in-out infinite alternate; }
+.balance-value { animation: text-reveal 450ms var(--ease-out); }
+.session-warning, .error-text { animation: reveal-up 300ms var(--ease-out); }
+.account-menu .account-trigger { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 25px; padding: 0; background: transparent; color: #7c7c7c; }
+.account-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 9px var(--mono); }
+.account-trigger > svg:last-child { margin-left: auto; }
+.account-trigger[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
+.account-menu .account-trigger:hover { color: #222; background: transparent; }
+.account-popover { transform-origin: bottom right; animation: menu-arrive 260ms var(--ease-out); }
+.account-popover.is-exiting { animation: menu-leave 200ms ease forwards; pointer-events: none; }
+.account-popover button:hover svg { transform: translateX(-2px); }
+.toast { animation: notification-arrive 400ms var(--ease-out) both; transition: opacity 200ms ease; }
+.toast.is-exiting { animation: notification-leave 200ms ease forwards; }
+.toast > svg { animation: check-appear 400ms var(--ease-out); }
+.toast > span { animation: text-reveal 220ms var(--ease-out); }
+.modal[open] { animation: modal-arrive 360ms var(--ease-out) both; }
+.modal[open]::backdrop { animation: fade-in 300ms ease both; }
+.modal[open].is-exiting { animation: modal-leave 200ms ease forwards; pointer-events: none; }
+.modal[open].is-exiting::backdrop { animation: fade-out 200ms ease forwards; }
+.modal h2, .modal-copy, .modal .key-list, .modal .add-key { animation: reveal-up 420ms var(--ease-out) backwards; }
+.modal h2 { animation-delay: 50ms; }
+.modal-copy, .modal .key-list { animation-delay: 90ms; }
+.modal .add-key { animation-delay: 130ms; }
+.key-item { transition: background 220ms ease, box-shadow 220ms ease, transform 240ms var(--ease-out); animation: reveal-up 320ms var(--ease-out) backwards; }
+.key-item:nth-child(2) { animation-delay: 50ms; }
+.key-item:nth-child(3) { animation-delay: 100ms; }
+.key-item.chosen > svg:last-child { animation: check-appear 350ms var(--ease-out); }
+.key-item:hover { transform: translateX(2px); }
+.add-key-fields input { transition: background 220ms ease, box-shadow 220ms ease; }
+.add-key-fields input:focus { background: #ededed; box-shadow: inset 0 -1px #555; }
+.auth-top { animation: reveal-up 550ms var(--ease-out) both; }
+.auth-card { animation: card-arrive 650ms var(--ease-out) both; }
+.permissions, .auth-note { animation: reveal-up 550ms var(--ease-out) backwards; }
+.permissions { animation-delay: 150ms; }
+.auth-note { animation-delay: 200ms; }
+.auth-complete { animation: reveal-up 400ms var(--ease-out); }
+.auth-complete > svg { animation: check-appear 600ms var(--ease-out); }
+.auth-complete svg, .switch-track button svg, .toast > svg { stroke-dasharray: 50; stroke-dashoffset: 0; }
+.startup-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; min-height: 100dvh; animation: fade-in 200ms ease; }
+.startup-line { position: relative; width: 110px; height: 1px; overflow: hidden; background: #e0e0e0; }
+.startup-line::after { content: ''; position: absolute; width: 40%; height: 100%; background: #333; animation: loading-line 900ms ease-in-out infinite; }
+@keyframes reveal-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes text-reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes card-arrive { from { opacity: 0; transform: translateY(22px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes status-appear { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+@keyframes check-appear { from { opacity: 0; transform: scale(.5) rotate(-12deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+@keyframes working-breathe { from { opacity: .45; } to { opacity: .85; } }
+@keyframes menu-arrive { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes menu-leave { to { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes notification-arrive { from { opacity: 0; transform: translate(-50%, 12px) scale(.97); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes notification-leave { to { opacity: 0; transform: translate(-50%, 8px) scale(.98); } }
+@keyframes modal-arrive { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes modal-leave { to { opacity: 0; transform: translateY(8px) scale(.98); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes loading-line { from { transform: translateX(-100%); } to { transform: translateX(350%); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-delay: 0s !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

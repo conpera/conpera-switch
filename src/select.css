@@ -1,0 +1,228 @@
+.conpera-select {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  font: inherit;
+}
+
+.conpera-select.is-open,
+.conpera-select.is-closing {
+  z-index: 20;
+}
+
+.conpera-select .conpera-select-trigger {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 7px 26px 7px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(17, 17, 17, .58);
+  font: inherit;
+  letter-spacing: 0;
+  text-align: left;
+  outline: none;
+  box-shadow: none;
+  cursor: pointer;
+  transition: color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.conpera-select-trigger::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(17, 17, 17, .32);
+  content: '';
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 240ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.conpera-select-trigger > span,
+.conpera-select-option > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conpera-select .conpera-select-trigger:hover {
+  color: rgba(17, 17, 17, .78);
+}
+
+.conpera-select .conpera-select-trigger:focus-visible {
+  outline: none;
+}
+
+.conpera-select .conpera-select-trigger:focus-visible::after {
+  transform: scaleX(1);
+}
+
+.conpera-select .conpera-select-trigger:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.conpera-select-value {
+  animation: conpera-select-value-in 300ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.conpera-select-trigger > svg {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  color: rgba(17, 17, 17, .46);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: color 180ms ease, transform 340ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.conpera-select.is-open .conpera-select-trigger > svg {
+  color: rgba(17, 17, 17, .72);
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.conpera-select .conpera-select-trigger:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.conpera-select-menu {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, .14), 0 2px 8px rgba(0, 0, 0, .06);
+  scrollbar-width: thin;
+  --select-offset: -6px;
+  transform-origin: top center;
+}
+
+.conpera-select-menu.is-entering {
+  animation: conpera-select-appear 260ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.conpera-select-menu.is-leaving {
+  pointer-events: none;
+  animation: conpera-select-disappear 180ms cubic-bezier(.4, 0, 1, 1) both;
+}
+
+.conpera-select-menu.opens-above {
+  top: auto;
+  bottom: calc(100% + 7px);
+  --select-offset: 6px;
+  transform-origin: bottom center;
+}
+
+.conpera-select .conpera-select-option {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(17, 17, 17, .58);
+  font: inherit;
+  letter-spacing: 0;
+  text-align: left;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, transform 180ms ease;
+}
+
+.conpera-select-menu.is-entering .conpera-select-option {
+  animation: conpera-select-option-in 230ms cubic-bezier(.22, 1, .36, 1) backwards;
+}
+
+.conpera-select .conpera-select-option:active {
+  transform: scale(.985);
+}
+
+.conpera-select .conpera-select-option:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.conpera-select .conpera-select-option.is-active,
+.conpera-select .conpera-select-option:hover {
+  background: #f5f5f5;
+  color: rgba(17, 17, 17, .82);
+}
+
+.conpera-select .conpera-select-option.is-selected {
+  background: #efefef;
+  color: #222;
+}
+
+.conpera-select-option > span {
+  transition: transform 200ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.conpera-select-option.is-active > span {
+  transform: translateX(2px);
+}
+
+.conpera-select-option > svg {
+  position: static;
+  flex: 0 0 auto;
+  color: currentColor;
+  opacity: 0;
+  transform: scale(.6) rotate(-12deg);
+  transition: opacity 180ms ease, transform 260ms cubic-bezier(.2, .8, .2, 1.3);
+}
+
+.conpera-select-option.is-selected > svg {
+  opacity: 1;
+  transform: scale(1) rotate(0);
+}
+
+@keyframes conpera-select-appear {
+  from { opacity: 0; transform: translateY(var(--select-offset)) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes conpera-select-disappear {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(var(--select-offset)) scale(.98); }
+}
+
+@keyframes conpera-select-option-in {
+  from { opacity: 0; transform: translateY(var(--select-offset)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes conpera-select-value-in {
+  from { opacity: .35; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conpera-select *, .conpera-select *::before, .conpera-select *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .conpera-select-menu.is-leaving { display: none; }
+  .conpera-select .conpera-select-trigger:active:not(:disabled),
+  .conpera-select .conpera-select-option:active,
+  .conpera-select-option.is-active > span { transform: none; }
+}
