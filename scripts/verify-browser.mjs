@@ -67,7 +67,7 @@ try {
   await channel.press('ArrowDown');
   await channel.press('End');
   await channel.press('Enter');
-  check('Channel selects its own key', (await page.getByRole('combobox', { name: 'Codex 密钥', exact: true }).innerText()).includes('9c4e'));
+  check('Channel changes preserve the current key', (await page.getByRole('combobox', { name: 'Codex 密钥', exact: true }).innerText()).includes('8f2a'));
   check('Keyboard choice closes menu and restores focus', await channel.getAttribute('aria-expanded') === 'false' && await channel.evaluate(el => document.activeElement === el));
   await channel.click();
   await page.keyboard.press('Escape');

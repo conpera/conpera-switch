@@ -61,6 +61,8 @@ try {
       balance: 42.75,
       currency: 'CNY',
       failApply: {},
+      failChannel: false,
+      channelTimeoutAfterWrite: false,
       failRestore: {},
       failKeys: false,
       failStatus: false,
@@ -79,6 +81,9 @@ try {
         { id: 'server-claude-201', tool: 'claude', name: '测试 Claude 密钥', channel: '账户 Claude 渠道', suffix: 'cc03' },
       ],
     };
+    fixture.keys.forEach((key,index)=>key.channelId = `group:${[1,2,1,3,4][index]}`);
+    fixture.channels = [...new Map(fixture.keys.map(key => [key.channelId, { id:key.channelId, name:key.channel, tool:key.tool }])).values(),
+      { id:'group:28', name:'Claude code Max 老号分组（不降智测试）', tool:'claude' }];
     const scenario = new URL(location.href).searchParams.get('fixture');
     if (scenario === 'saved-internal') {
       fixture.connected = true;
@@ -88,6 +93,7 @@ try {
       fixture.connected = true;
       fixture.keys[0].name = '设备专用密钥'.repeat(18);
       fixture.keys[0].channel = 'Codex GPT Pro 尊享自营长名称渠道'.repeat(5);
+      fixture.channels[0].name = fixture.keys[0].channel;
     }
     if (scenario === 'keys-failed') {
       fixture.connected = true;
@@ -141,7 +147,17 @@ try {
         if (!fixture.connected) return failure(401, 'unauthenticated', '请重新登录。');
         if (action === 'session') return fixture.sessionDenied ? failure(403, 'beta_access_denied', '当前账户没有内测权限，仅向 test 用户和 admin 管理员开放。') : okay(session());
         if (action === 'balance') return okay({ balance: fixture.balance, ...(fixture.currency ? { currency: fixture.currency } : {}), updatedAt: '2026-10-08T00:00:00Z' });
-        if (action === 'keys') return fixture.failKeys ? failure(503, 'keys_unavailable', '暂时无法同步账户密钥。') : okay({ keys: fixture.keys });
+        if (action === 'keys') return fixture.failKeys ? failure(503, 'keys_unavailable', '暂时无法同步账户密钥。') : okay({ keys: fixture.keys, channels: fixture.channels });
+        if (action === 'changeChannel') {
+          await new Promise(resolve => setTimeout(resolve, 15));
+          if (fixture.failChannel) return failure(409, 'switch_channel_unavailable', '此渠道暂不可用。');
+          const key=fixture.keys.find(key=>key.id===payload.keyId && key.tool===payload.tool);
+          const channel=fixture.channels.find(channel=>channel.id===payload.channelId && channel.tool===payload.tool);
+          if(!key || !channel || key.channelId!==payload.expectedChannelId) return failure(409,'switch_channel_changed','密钥渠道已变化。');
+          key.channelId=channel.id;key.channel=channel.name;
+          if(fixture.channelTimeoutAfterWrite) return failure(503,'network_error','未能确认切换结果。');
+          return okay({key});
+        }
         if (action === 'apply') {
           await new Promise(resolve => setTimeout(resolve, 15));
           if (fixture.failApply[payload.tool]) return failure(507, 'configuration_write_failed', '磁盘写入失败，未修改配置。');
@@ -211,7 +227,7 @@ try {
   check('Dashboard uses only native metadata and no fixed demo rows or balance', dashboardText.includes('账户标准渠道') && dashboardText.includes('测试 Codex 主密钥') && dashboardText.includes('账户 Claude 渠道') && dashboardText.includes('测试 Claude 密钥') && !/Conpera Creator|creator@example\.test|128\.50|8f2a|6a1f|DEMO/.test(dashboardText));
   await page.getByRole('button', { name: '管理 Codex 密钥', exact: true }).click();
   await page.getByRole('heading', { name: 'Codex · 密钥', exact: true }).waitFor();
-  check('Beta key management contains synced metadata and no local fake-key creation', await page.locator('.key-item').count() === 2 && await page.getByRole('button', { name: '添加并选择', exact: true }).count() === 0 && await page.getByRole('textbox').count() === 0);
+  check('Beta key management contains synced metadata and no local fake-key creation', await page.locator('.key-item').count() === 4 && await page.getByRole('button', { name: '添加并选择', exact: true }).count() === 0 && await page.getByRole('textbox').count() === 0);
   await page.getByRole('button', { name: '关闭弹窗', exact: true }).click();
   await page.locator('dialog[open]').waitFor({ state: 'hidden' });
   const beforeChannelChoices = (await calls('apply')).length;
@@ -220,23 +236,35 @@ try {
   await page.keyboard.press('Escape');
   const keyChoice = page.getByRole('combobox', { name: 'Codex 密钥', exact: true });
   await keyChoice.click();
-  check('Separate key list contains only the selected channel', await page.getByRole('option').count() === 2 && await page.getByRole('option', { name: '测试 Codex 备用密钥 · bb02', exact: true }).count() === 0);
+  check('Key list allows selecting any owned key of the tool independently of channel', await page.getByRole('option').count() === 4);
   await page.getByRole('option', { name: '测试 Codex 同渠道密钥 · dd03', exact: true }).click();
-  check('A test-named key stays in its normal channel without writing original configuration', (await codexKeys.innerText()).includes('账户标准渠道') && (await keyChoice.innerText()).includes('dd03') && (await calls('apply')).length === beforeChannelChoices);
-  await codexKeys.click();
-  await page.getByRole('option', { name: '账户标准渠道', exact: true }).click();
-  check('Reselecting the same channel retains its selected key', (await keyChoice.innerText()).includes('dd03'));
+  check('Choosing a key in original mode does not write local configuration', (await keyChoice.innerText()).includes('dd03') && (await calls('apply')).length === beforeChannelChoices);
   await page.getByRole('button', { name: 'Codex 高级选项', exact: true }).click();
   await page.getByRole('combobox', { name: 'Codex 内部测试渠道', exact: true }).click();
   await page.getByRole('option', { name: '内部测试-实验渠道', exact: true }).click();
-  check('Advanced selection remains visible after the advanced panel closes', (await codexKeys.innerText()).includes('内部测试-实验渠道') && (await keyChoice.innerText()).includes('ee04') && await page.getByRole('button', { name: 'Codex 高级选项', exact: true }).getAttribute('aria-expanded') === 'false');
+  await waitIdle(codex);
+  check('Advanced channel changes the currently selected key without replacing it', (await codexKeys.innerText()).includes('内部测试-实验渠道') && (await keyChoice.innerText()).includes('dd03') && (await calls('changeChannel')).at(-1).payload.keyId === 'server-codex-103');
   await codexKeys.click();
   await page.getByRole('option', { name: '账户标准渠道', exact: true }).click();
-  check('Returning to a normal channel selects one of its keys', (await keyChoice.innerText()).includes('aa01') && (await calls('apply')).length === beforeChannelChoices);
-  const beforeSelect = (await calls('apply')).length;
-  await codexKeys.click();
-  await page.getByRole('option', { name: '账户备用渠道', exact: true }).click();
-  check('Selecting a key in original mode does not write local configuration', (await calls('apply')).length === beforeSelect && (await page.getByRole('combobox', { name: 'Codex 密钥', exact: true }).innerText()).includes('bb02'));
+  await waitIdle(codex);
+  check('Returning to a normal channel preserves the current key', (await keyChoice.innerText()).includes('dd03') && (await calls('apply')).length === beforeChannelChoices);
+  const beforeSame = (await calls('changeChannel')).length;
+  await codexKeys.click();await page.getByRole('option', { name:'账户标准渠道', exact:true }).click();
+  check('Reselecting current channel does not mutate it', (await calls('changeChannel')).length === beforeSame);
+  const claudeChannel=page.getByRole('combobox',{name:'Claude Code 渠道',exact:true});
+  await claudeChannel.click();
+  check('Old-account Claude channel without existing keys is visible in the normal list', await page.getByRole('option',{name:'Claude code Max 老号分组（不降智测试）',exact:true}).isVisible());
+  await page.getByRole('option',{name:'Claude code Max 老号分组（不降智测试）',exact:true}).click();await waitIdle(claude);
+  check('Old-account choice moves the same Claude key and never creates or applies another key', (await page.getByRole('combobox',{name:'Claude Code 密钥',exact:true}).innerText()).includes('cc03') && (await calls('changeChannel')).at(-1).payload.keyId==='server-claude-201' && (await calls('apply')).length===beforeChannelChoices);
+  await page.evaluate(()=>{window.__betaFixture.failChannel=true});
+  await claudeChannel.click();await page.getByRole('option',{name:'账户 Claude 渠道',exact:true}).click();await waitIdle(claude);
+  check('Failed channel mutation retains the confirmed server channel and key', (await claudeChannel.innerText()).includes('老号') && (await page.getByRole('combobox',{name:'Claude Code 密钥',exact:true}).innerText()).includes('cc03'));
+  await page.evaluate(()=>{window.__betaFixture.failChannel=false;window.__betaFixture.channelTimeoutAfterWrite=true});
+  const beforeTimeout=(await calls('changeChannel')).length;
+  await claudeChannel.click();await page.getByRole('option',{name:'账户 Claude 渠道',exact:true}).click();await waitIdle(claude);
+  check('Ambiguous timeout reads back the changed channel without retrying the mutation', (await claudeChannel.innerText()).includes('账户 Claude 渠道') && (await calls('changeChannel')).length===beforeTimeout+1);
+  await page.evaluate(()=>{window.__betaFixture.channelTimeoutAfterWrite=false});
+  await keyChoice.click();await page.getByRole('option',{name:'测试 Codex 备用密钥 · bb02',exact:true}).click();
 
   await page.evaluate(() => { window.__betaFixture.failApply.codex = true; });
   await codex.getByRole('button', { name: 'Conpera', exact: true }).click();
@@ -249,12 +277,13 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-testid="tool-codex"] [aria-label="Conpera"]')?.getAttribute('aria-pressed') === 'true');
   check('Successful write reflects native readback state and asks for restart', (await page.locator('.toast').innerText()).includes('重启') && await codex.getAttribute('class').then(value => value.includes('is-active')));
 
+  const activeApplyCount=(await calls('apply')).length;
+  await codexKeys.click();await page.getByRole('option',{name:'账户标准渠道',exact:true}).click();await waitIdle(codex);
+  check('Active channel switching keeps its key and local CLI configuration', (await keyChoice.innerText()).includes('bb02') && (await calls('apply')).length===activeApplyCount);
   await page.evaluate(() => { window.__betaFixture.failApply.codex = true; });
-  await codexKeys.click();
-  await page.getByRole('option', { name: '账户标准渠道', exact: true }).click();
-  await page.getByRole('alert').filter({ hasText: '磁盘写入失败' }).waitFor();
-  await waitIdle(codex);
-  check('A failed active-key change retains the previously applied key', (await page.getByRole('combobox', { name: 'Codex 密钥', exact: true }).innerText()).includes('bb02'));
+  await keyChoice.click();await page.getByRole('option',{name:'测试 Codex 主密钥 · aa01',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'磁盘写入失败'}).waitFor();await waitIdle(codex);
+  check('A failed active-key change retains the previously applied key', (await keyChoice.innerText()).includes('bb02'));
   await assertStorage('Login, key selection, and write results never persist tokens or key material');
 
   // Trigger a fresh account read and therefore a fresh native configuration read.
