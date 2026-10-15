@@ -5,6 +5,7 @@ import ChannelSelect, { isAdvancedChannel } from './ChannelSelect';
 import { ClaudeMark, CodexMark, ConperaMark } from './BrandMarks';
 import WelcomeScreen from './WelcomeScreen';
 import ConfigurationEditor from './ConfigurationEditor';
+import UpdateButton from './UpdateButton';
 import { AccountMenu, AnimatedBalance, Presence, Toast, cardHover, reducedMotion } from './Motion';
 import { isNative, edition, nativeCall, NativeError } from './native';
 
@@ -395,6 +396,7 @@ function Dashboard() {
     <header className="topbar">
       <a className="brand" href="/" aria-label="Conpera Switch 首页"><Wordmark/><span className="product-name">Switch</span></a>
       <div className="topbar-actions">
+        <UpdateButton disabled={!!busy || accountBusy || loginBusy}/>
         <span className="demo-tag" title={isNative ? 'Conpera Switch · 连接您的账户' : '仅演示，不读取或修改本机配置'}>{edition}</span>
         <button className="icon-button" aria-label={numActive === 2 ? '全部恢复原机' : '全部启用 Conpera'} title={numActive === 2 ? '全部恢复原机' : '全部启用 Conpera'} onClick={() => void switchMode('all', numActive === 2 ? 'original' : 'conpera')} disabled={!!busy || (isNative && numActive !== 2 && (!session || Object.values(tools).some(t => t.mode === 'unavailable')))}>{busy === 'all' ? <LoaderCircle className="spin" size={18}/> : <ArrowLeftRight size={18}/>}</button>
         <button className="icon-button" aria-label={isNative ? '关于 Conpera Switch' : '关于此演示'} title={isNative ? '使用说明' : '演示说明'} onClick={() => setHelp(true)}><CircleHelp size={18}/></button>

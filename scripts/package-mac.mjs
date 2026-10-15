@@ -19,7 +19,7 @@ run('/usr/bin/codesign', ['--verify', '--deep', '--strict', app]);
 const scratch = await mkdtemp(path.join(os.tmpdir(), 'conpera-switch-package-'));
 try {
   const volume = path.join(scratch, 'volume');
-  await cp(app, path.join(volume, 'Conpera Switch.app'), { recursive: true, preserveTimestamps: true });
+  run('/usr/bin/ditto', [app, path.join(volume, 'Conpera Switch.app')]);
   await symlink('/Applications', path.join(volume, 'Applications'));
   await writeFile(path.join(volume, '安装说明.txt'), `Conpera Switch ${version}\n\n将 Conpera Switch 拖入 Applications（应用程序）后打开。\n需要 macOS 13 或更高版本。此安装包适用于 ${architecture}。\n\n此版本采用 ad-hoc 签名，尚未完成 Apple Developer ID 签名与公证。\n若 macOS 阻止启动，可在「系统设置 → 隐私与安全性」中核对应用后选择「仍要打开」。\n\n登录您状态正常的 Conpera 账户，选择本人密钥后启用。\n配置切换后请重启 Codex / Claude Code。应用菜单提供恢复原机配置。\n\n源码与问题反馈：https://github.com/conpera/conpera-switch\n`);
   const stem = `Conpera-Switch-${version}-mac-${architecture}`;

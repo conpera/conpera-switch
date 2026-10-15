@@ -1,0 +1,7 @@
+.update-control { position: relative; }
+.update-button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 0; background: transparent; color: #8b8b8b; font-size: 10px; white-space: nowrap; }
+.update-button:hover { color: #222; }
+.update-button.with-version { font-size: 9px; gap: 7px; }
+.update-button.with-version > span:first-child { color: #aaa; letter-spacing: .5px; }
+.update-error { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; display: flex; align-items: flex-start; gap: 8px; width: 240px; max-width: calc(100vw - 64px); padding: 12px; background: #fff; border: 1px solid #eee; box-shadow: 0 8px 28px #00000012; color: #b84c3d; font-size: 11px; line-height: 1.7; text-align: left; }
+.update-error .icon-button { width: 18px; height: 18px; }

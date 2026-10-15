@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     private var mainWindowLayout: MainWindowLayout?
     #if SWITCH_NATIVE
     private let runtime = SwitchRuntime()
+    #if SWITCH_UPDATER
+    private lazy var softwareUpdater = ApplicationUpdater(runtime: runtime)
+    #endif
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -49,6 +52,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         appItem.submenu = appMenu
         appMenu.addItem(withTitle: "关于 Conpera Switch", action: #selector(showAbout), keyEquivalent: "").target = self
         #if SWITCH_NATIVE
+        #if SWITCH_UPDATER
+        appMenu.addItem(withTitle: "检查更新…", action: #selector(checkSoftwareUpdates), keyEquivalent: "").target = self
+        #endif
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "恢复 Codex 原机配置", action: #selector(restoreCodex), keyEquivalent: "").target = self
         appMenu.addItem(withTitle: "恢复 Claude Code 原机配置", action: #selector(restoreClaude), keyEquivalent: "").target = self
@@ -279,8 +285,39 @@ extension AppDelegate: WKScriptMessageHandlerWithReply {
             replyHandler(["ok": false, "error": ["status": 403, "code": "invalid_caller", "message": "请求来源无效。"]], nil)
             return
         }
+        #if SWITCH_UPDATER
+        if action == "checkForUpdates" {
+            guard payload.isEmpty else {
+                replyHandler(["ok": false, "error": ["status": 400, "code": "invalid_request", "message": "请求格式无效。"]], nil)
+                return
+            }
+            Task { @MainActor in
+                do {
+                    try await softwareUpdater.check(configurationEditorOpen: mainWindowLayout == .settings)
+                    replyHandler(["ok": true, "data": [:]], nil)
+                } catch {
+                    replyHandler(["ok": false, "error": ["status": 409, "code": "update_unavailable", "message": error.localizedDescription]], nil)
+                }
+            }
+            return
+        }
+        #endif
         Task { @MainActor in replyHandler(await runtime.handle(action: action, payload: payload), nil) }
     }
+    #if SWITCH_UPDATER
+    @objc fileprivate func checkSoftwareUpdates() {
+        Task { @MainActor in
+            do { try await softwareUpdater.check(configurationEditorOpen: mainWindowLayout == .settings) }
+            catch {
+                let alert = NSAlert()
+                alert.messageText = "暂时无法检查更新"
+                alert.informativeText = error.localizedDescription
+                alert.addButton(withTitle: "好")
+                if let mainWindow { alert.beginSheetModal(for: mainWindow, completionHandler: nil) }
+            }
+        }
+    }
+    #endif
     @objc fileprivate func restoreCodex() { restoreFromMenu("codex") }
     @objc fileprivate func restoreClaude() { restoreFromMenu("claude") }
     private func restoreFromMenu(_ tool: String) {

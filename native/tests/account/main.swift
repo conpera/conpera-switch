@@ -397,10 +397,37 @@ func run() async throws {
         let reply = await busyRuntime.handle(action: action, payload: payload)
         try check(errorCode(reply) == "operation_in_progress", "mutation lock rejects \(action) during apply")
     }
+    do {
+        try await busyRuntime.beginSoftwareUpdate()
+        throw NSError(domain: "UpdateTest", code: 1)
+    } catch let error as AccountError {
+        try check(error.code == "operation_in_progress", "software update cannot interrupt an active configuration write")
+    }
+    // An unowned release must not unlock a configuration mutation.
+    await busyRuntime.endSoftwareUpdate()
+    let stillBusy = await busyRuntime.handle(action: "restore", payload: ["tool": "codex"])
+    try check(errorCode(stillBusy) == "operation_in_progress", "software update release cannot clear another mutation lease")
     await applyReleased.open()
     let completedApply = await pendingApply.value
     try check(isOkay(completedApply), "mutation holder completes safely")
     _ = await busyRuntime.handle(action: "restore", payload: ["tool": "codex"])
+
+    try await busyRuntime.beginSoftwareUpdate()
+    for (action, payload) in [
+        ("apply", ["tool": "codex", "keyId": "key-a"] as [String: Any]),
+        ("restore", ["tool": "codex"]),
+        ("configurationDetails", ["tool": "codex"]),
+        ("saveConfiguration", ["tool": "codex", "revision": String(repeating: "a", count: 64), "content": ""]),
+        ("login", [:]), ("logout", [:])
+    ] {
+        let reply = await busyRuntime.handle(action: action, payload: payload)
+        try check(errorCode(reply) == "operation_in_progress", "software update blocks \(action) until completion")
+    }
+    let duringUpdateStatus = await busyRuntime.handle(action: "status", payload: [:])
+    try check(isOkay(duringUpdateStatus), "configuration status stays readable during software updates")
+    await busyRuntime.endSoftwareUpdate()
+    let afterUpdateRead = await busyRuntime.handle(action: "configurationDetails", payload: ["tool": "codex"])
+    try check(isOkay(afterUpdateRead), "configuration editing resumes after an update finishes or is cancelled")
 
     let waitingRecorder = Recorder()
     let waitingAccount = AccountClient(credentials: MemoryCredentials(), transport: runtimeTransport, openBrowser: { url in await waitingRecorder.add(url); return true })

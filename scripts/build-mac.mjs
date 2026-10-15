@@ -3,12 +3,15 @@ import { access, cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { prepareSparkle, updatePublicKey, updateFeed } from './sparkle.mjs';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const beta = process.argv.includes('--beta');
 const demo = process.argv.includes('--demo');
 if (beta && demo) throw new Error('Choose only one edition.');
 const native = !demo;
+const withUpdater = native && !beta;
+const sparkle = withUpdater ? await prepareSparkle() : null;
 const version = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8')).version;
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version.');
 const releaseRoot = path.join(projectRoot, 'release', native && !beta ? version : '');
@@ -66,6 +69,20 @@ try {
   })) {
     run('/usr/bin/plutil', ['-replace', key, '-string', value, path.join(contents, 'Info.plist')]);
   }
+  if (withUpdater) {
+    const plist = path.join(contents, 'Info.plist');
+    for (const [key, value] of Object.entries({ SUFeedURL: updateFeed, SUPublicEDKey: updatePublicKey })) {
+      run('/usr/bin/plutil', ['-insert', key, '-string', value, plist]);
+    }
+    for (const [key, value] of Object.entries({ SUEnableAutomaticChecks: false, SUAutomaticallyUpdate: false, SUAllowsAutomaticUpdates: false, SUEnableSystemProfiling: false, SUVerifyUpdateBeforeExtraction: true, SURequireSignedFeed: true, SUEnableJavaScript: false })) {
+      run('/usr/bin/plutil', ['-insert', key, '-bool', String(value), plist]);
+    }
+    run('/usr/bin/plutil', ['-insert', 'SUSignedFeedFailureExpirationInterval', '-integer', '0', plist]);
+    await mkdir(path.join(contents, 'Frameworks'));
+    // ditto preserves framework symlinks, helper executable bits and signatures.
+    run('/usr/bin/ditto', [path.join(sparkle, 'Sparkle.framework'), path.join(contents, 'Frameworks/Sparkle.framework')]);
+    await cp(path.join(sparkle, 'LICENSE'), path.join(resources, 'Sparkle-LICENSE.txt'));
+  }
   for (const name of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) {
     await cp(path.join(projectRoot, name), path.join(resources, name));
   }
@@ -76,10 +93,12 @@ try {
     '-framework', 'AppKit', '-framework', 'WebKit',
     '-framework', 'Network', '-framework', 'CryptoKit', '-framework', 'Security',
     ...(native ? ['-D', 'SWITCH_NATIVE'] : []),
+    ...(withUpdater ? ['-D', 'SWITCH_UPDATER', '-F', sparkle, '-framework', 'Sparkle', '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks'] : []),
     ...(beta ? ['-D', 'SWITCH_BETA'] : []),
     '-o', executable,
     path.join(projectRoot, 'native', 'main.swift'),
     path.join(projectRoot, 'native', 'LocalDemoServer.swift'),
+    ...(withUpdater ? [path.join(projectRoot, 'native', 'ApplicationUpdater.swift')] : []),
     ...(native ? ['AccountClient.swift', 'CredentialStore.swift', 'AuthorizationCallback.swift', 'ConfigurationManager.swift', 'ConfigurationDocument.swift', 'SwitchRuntime.swift'].map(name => path.join(projectRoot, 'native', name)) : []),
   ]);
 
@@ -115,7 +134,7 @@ try {
     await rm(destination, { recursive: true });
   }
   // Copy first: temporary folders and the workspace may use different volumes.
-  await cp(stagedApp, destination, { recursive: true, preserveTimestamps: true });
+  run('/usr/bin/ditto', [stagedApp, destination]);
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', destination]);
   console.log(`\nBuilt ${destination}`);
   console.log(`Architecture: ${architecture}; minimum macOS: 13.0.`);

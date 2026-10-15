@@ -58,6 +58,7 @@ try {
     const fixture = {
       connected: false,
       denyLogin: true,
+      failUpdate: false,
       balance: 42.75,
       currency: 'CNY',
       failApply: {},
@@ -125,6 +126,7 @@ try {
         fixture.calls.push(clone(request));
         const { action, payload } = request;
         if (!payload || typeof payload !== 'object') return failure(400, 'invalid_request', '无效请求');
+        if (action === 'checkForUpdates') return fixture.failUpdate ? failure(503, 'updater_unavailable', '更新组件暂未就绪，请重试。') : okay({});
         if (action === 'status') return fixture.failStatus ? failure(409, 'configuration_unavailable', '无法安全读取本机配置，未确认当前配置来源。') : okay(status());
         if (action === 'cancelLogin') return okay({});
         if (action === 'restore') {
@@ -408,6 +410,23 @@ try {
   check('No external requests or browser runtime exceptions occurred', blocked.length === 0 && errors.length === 0);
   await mkdir(output, { recursive: true });
   const report = { result: 'passed', scope: 'isolated Chromium + synthetic native Promise bridge; no production or real CLI configuration access', count: checks.length, checks, errors, blockedRequests: blocked, staticRequests: httpRequests.length };
+  if (release) {
+    const updatePage = await context.newPage();
+    await updatePage.goto(origin);
+    await updatePage.getByRole('button', { name: '检查更新', exact: true }).click();
+    check('Welcome update check works without signing in and sends no custom URL', await updatePage.evaluate(() => window.__betaFixture.calls.some(call => call.action === 'checkForUpdates' && Object.keys(call.payload).length === 0)));
+    await updatePage.evaluate(() => { window.__betaFixture.failUpdate = true; });
+    await updatePage.getByRole('button', { name: '检查更新', exact: true }).click();
+    await updatePage.getByRole('alert').filter({ hasText: '更新组件暂未就绪' }).waitFor();
+    check('Update bridge errors remain visible with a retryable control', await updatePage.getByRole('button', { name: '检查更新', exact: true }).isEnabled());
+    await updatePage.getByRole('button', { name: '关闭更新提示', exact: true }).click();
+    await updatePage.evaluate(() => { window.__betaFixture.failUpdate = false; window.__betaFixture.denyLogin = false; });
+    await updatePage.getByRole('button', { name: '登录 Conpera', exact: true }).click();
+    await updatePage.getByTestId('tool-codex').waitFor();
+    await updatePage.getByRole('button', { name: '检查更新', exact: true }).click();
+    check('Dashboard exposes the same native updater entry point', await updatePage.evaluate(() => window.__betaFixture.calls.filter(call => call.action === 'checkForUpdates').length === 3));
+    await updatePage.close();
+  }
   await writeFile(join(output, reportName), JSON.stringify(report, null, 2) + '\n');
   console.log(`\n${checks.length} isolated native browser checks passed.`);
   console.log(`Report: ${join(output, reportName)}`);

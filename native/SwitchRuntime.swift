@@ -119,6 +119,10 @@ actor SwitchRuntime {
         }
     }
 
+    // Native-only entry points: web callers cannot acquire or release this lease.
+    func beginSoftwareUpdate() throws { try begin("softwareUpdate") }
+    func endSoftwareUpdate() { if mutation == "softwareUpdate" { mutation = nil } }
+
     private func begin(_ action: String) throws {
         guard mutation == nil else { throw Self.busy() }
         mutation = action
