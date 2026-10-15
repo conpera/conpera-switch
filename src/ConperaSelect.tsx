@@ -154,6 +154,7 @@ export default function ConperaSelect({ label, value, options, onChange, disable
   return <div className={`conpera-select ${visible ? 'is-open' : menuMounted ? 'is-closing' : ''} ${className}`} ref={rootRef} onKeyDown={handleKeyDown}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
     <button type="button" className="conpera-select-trigger" ref={triggerRef} role="combobox"
+      title={options[selectedIndex]?.label}
       aria-label={label} aria-haspopup="listbox" aria-expanded={visible} aria-controls={visible ? `${id}-listbox` : undefined}
       aria-activedescendant={visible ? `${id}-option-${activeIndex}` : undefined} disabled={unavailable}
       onClick={() => {

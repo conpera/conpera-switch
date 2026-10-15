@@ -62,7 +62,7 @@ try {
     CFBundleDisplayName: beta ? 'Conpera Switch Beta' : 'Conpera Switch',
     CFBundleName: beta ? 'Conpera Switch Beta' : 'Conpera Switch',
     CFBundleShortVersionString: beta ? '0.2.0' : demo ? '0.1.0' : version,
-    CFBundleVersion: beta ? '2' : '1',
+    CFBundleVersion: beta ? '2' : demo ? '1' : version,
   })) {
     run('/usr/bin/plutil', ['-replace', key, '-string', value, path.join(contents, 'Info.plist')]);
   }

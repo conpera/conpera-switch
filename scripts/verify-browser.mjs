@@ -63,11 +63,11 @@ try {
   await page.getByRole('button', { name: '全部启用 Conpera' }).click();
   await page.getByRole('button', { name: '全部恢复原机' }).waitFor();
   check('Both tools switch together', await page.locator('.tool-card.is-active').count() === 2);
-  const channel = page.getByRole('combobox', { name: 'Codex 渠道与密钥', exact: true });
+  const channel = page.getByRole('combobox', { name: 'Codex 渠道', exact: true });
   await channel.press('ArrowDown');
   await channel.press('End');
   await channel.press('Enter');
-  check('Channel selects its own key', (await page.getByRole('button', { name: '管理 Codex 密钥' }).innerText()).includes('9c4e'));
+  check('Channel selects its own key', (await page.getByRole('combobox', { name: 'Codex 密钥', exact: true }).innerText()).includes('9c4e'));
   check('Keyboard choice closes menu and restores focus', await channel.getAttribute('aria-expanded') === 'false' && await channel.evaluate(el => document.activeElement === el));
   await channel.click();
   await page.keyboard.press('Escape');
