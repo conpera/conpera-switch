@@ -331,6 +331,20 @@ func run() async throws {
     func mode(_ reply: [String: Any], _ tool: String) -> String? {
         (((reply["data"] as? [String: Any])?["tools"] as? [String: Any])?[tool] as? [String: Any])?["mode"] as? String
     }
+    let localSettingsRead = try await bridge("configurationDetails", ["tool": "codex"])
+    let localDetails = localSettingsRead["data"] as! [String: Any]
+    try check(isOkay(localSettingsRead) && runtimeStore.value == nil, "local settings remain accessible without an account")
+    let localPreview = try await bridge("previewConfiguration", ["tool": "codex", "content": localDetails["content"]!, "updates": ["model": "edited-fixture-model"]])
+    let localSaved = try await bridge("saveConfiguration", ["tool": "codex", "revision": localDetails["revision"]!, "content": (localPreview["data"] as! [String: Any])["content"]!])
+    let editedLocalDisk = try String(contentsOf: codexPath, encoding: .utf8)
+    try check(isOkay(localSaved) && editedLocalDisk.contains("edited-fixture-model"), "runtime settings writes reach the isolated configuration file")
+    let localUndone = try await bridge("undoConfiguration", ["tool": "codex", "revision": (localSaved["data"] as! [String: Any])["revision"]!])
+    let localRestored = try Data(contentsOf: codexPath)
+    try check(isOkay(localUndone) && localRestored == originalCodex, "runtime undo restores the fixture before login")
+    let localRequests = await runtimeTransport.requests.count
+    try check(localRequests == 0, "local settings never contact account or model APIs")
+    let invalidEditor = await runtime.handle(action: "saveConfiguration", payload: ["tool": "codex", "revision": "wrong", "content": "model = \"bad\"", "path": "/arbitrary"])
+    try check(errorCode(invalidEditor) == "invalid_request", "settings bridge refuses arbitrary file paths and malformed payloads")
     let runtimeLogin = try await bridge("login")
     let runtimeKeys = try await bridge("keys")
     try check(isOkay(runtimeLogin) && isOkay(runtimeKeys), "runtime login and key metadata flow")
@@ -341,6 +355,8 @@ func run() async throws {
     let claudeWritten = try String(contentsOf: claudePath, encoding: .utf8)
     try check(codexWritten.contains("runtime-secret-api-key") && claudeWritten.contains("runtime-secret-api-key"), "runtime writes authorized configuration only in fixture")
     let movedRuntime = try await bridge("changeChannel", ["tool": "codex", "keyId": "key-a", "channelId": "group:28", "expectedChannelId": "group:1"])
+    let activeSettings = try await bridge("configurationDetails", ["tool": "codex"])
+    try check(((activeSettings["data"] as? [String: Any])?["content"] as? String)?.contains("__CONPERA_PRIVATE_") == true, "active account credentials are replaced in raw configuration")
     let afterChannelCodex = try String(contentsOf: codexPath, encoding: .utf8)
     let afterChannelClaude = try String(contentsOf: claudePath, encoding: .utf8)
     try check(isOkay(movedRuntime) && afterChannelCodex == codexWritten && afterChannelClaude == claudeWritten, "changing a current key channel never rewrites either local CLI configuration")
@@ -370,6 +386,14 @@ func run() async throws {
     await applyStarted.wait()
     for action in ["apply", "restore", "login", "logout", "cancelLogin", "changeChannel"] {
         let payload: [String: Any] = action == "apply" ? ["tool": "claude", "keyId": "key-a"] : action == "restore" ? ["tool": "codex"] : action == "changeChannel" ? ["tool": "codex", "keyId": "key-a", "channelId": "group:28", "expectedChannelId": "group:1"] : [:]
+        let reply = await busyRuntime.handle(action: action, payload: payload)
+        try check(errorCode(reply) == "operation_in_progress", "mutation lock rejects \(action) during apply")
+    }
+    for (action, payload) in [
+        ("configurationDetails", ["tool": "codex"] as [String: Any]),
+        ("saveConfiguration", ["tool": "codex", "revision": String(repeating: "a", count: 64), "content": ""]),
+        ("undoConfiguration", ["tool": "codex", "revision": String(repeating: "a", count: 64)])
+    ] {
         let reply = await busyRuntime.handle(action: action, payload: payload)
         try check(errorCode(reply) == "operation_in_progress", "mutation lock rejects \(action) during apply")
     }

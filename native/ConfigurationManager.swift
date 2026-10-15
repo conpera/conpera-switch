@@ -12,12 +12,12 @@ final class ConfigurationManager {
         var errorDescription: String? { message }
     }
 
-    private struct Snapshot: Codable {
+    private struct Snapshot: Codable, Equatable {
         let data: Data?
         let permissions: UInt16
         var digest: String { data.map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() } ?? "absent" }
     }
-    private struct Record: Codable {
+    private struct Record: Codable, Equatable {
         let version: Int
         let target: String
         let original: Snapshot
@@ -29,6 +29,13 @@ final class ConfigurationManager {
         let target: String
         let before: Snapshot
         let after: Snapshot
+        let previous: Record?
+        let next: Record
+    }
+    private struct SettingsUndo: Codable {
+        let target: String
+        let before: Snapshot
+        let afterDigest: String
         let previous: Record?
         let next: Record
     }
@@ -51,6 +58,91 @@ final class ConfigurationManager {
             try recoverAll(directory)
             return try result(directory)
         }
+    }
+
+    func configurationDetails(tool: String) throws -> [String: Any] {
+        try validateTool(tool)
+        return try withLock { directory in
+            try recoverAll(directory)
+            return try details(tool, directory)
+        }
+    }
+
+    func saveConfiguration(tool: String, revision: String, content: String) throws -> [String: Any] {
+        try validateTool(tool)
+        return try withLock { directory in
+            try recoverAll(directory)
+            let target = targets[tool]!
+            let previous = try record(tool, directory)
+            try validateRecord(previous, target: target)
+            let before = try snapshot(target)
+            try validateSettingsRevision(revision, before: before, record: previous)
+            let source = try ConfigurationDocument.source(before.data, tool: tool)
+            let restored = try ConfigurationDocument.restore(content, original: source, tool: tool, active: previous?.appliedDigest != nil)
+            let data = Data(restored.utf8)
+            if data == before.data { return try details(tool, directory) }
+            let after = Snapshot(data: data, permissions: 0o600)
+            let active = previous?.appliedDigest != nil
+            let next = Record(version: 1, target: target.path, original: active ? previous!.original : after,
+                              appliedDigest: active ? after.digest : nil, keyId: active ? previous?.keyId : nil)
+            let undo = SettingsUndo(target: target.path, before: before, afterDigest: after.digest, previous: previous, next: next)
+            try save(undo, name: tool + ".settings-undo.json", directory: directory)
+            try transact(tool: tool, before: before, after: after, previous: previous, next: next, directory: directory)
+            return try details(tool, directory)
+        }
+    }
+
+    func undoConfiguration(tool: String, revision: String) throws -> [String: Any] {
+        try validateTool(tool)
+        return try withLock { directory in
+            try recoverAll(directory)
+            let target = targets[tool]!
+            let previous = try record(tool, directory)
+            try validateRecord(previous, target: target)
+            let before = try snapshot(target)
+            try validateSettingsRevision(revision, before: before, record: previous)
+            guard let undo = try settingsUndo(tool, directory), undo.target == target.path,
+                  undo.afterDigest == before.digest, undo.next == previous else {
+                throw failure(409, "settings_undo_unavailable", "配置已变化，无法撤销上次保存。备份仍保留。")
+            }
+            let next = undo.previous ?? Record(version: 1, target: target.path, original: undo.before, appliedDigest: nil, keyId: nil)
+            try transact(tool: tool, before: before, after: undo.before, previous: previous, next: next, directory: directory)
+            try directory.remove(tool + ".settings-undo.json")
+            return try details(tool, directory)
+        }
+    }
+
+    private func settingsUndo(_ tool: String, _ directory: SafeDirectory) throws -> SettingsUndo? {
+        guard let data = try directory.read(tool + ".settings-undo.json", maximum: maximumFileSize * 8, privateFile: true)?.data else { return nil }
+        guard let undo = try? JSONDecoder().decode(SettingsUndo.self, from: data) else {
+            throw failure(409, "invalid_backup", "配置编辑备份无法读取，未修改配置。")
+        }
+        return undo
+    }
+
+    private func settingsRevision(_ snapshot: Snapshot, _ record: Record?) throws -> String {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let recordData = try encoder.encode(record)
+        return SHA256.hash(data: Data((snapshot.digest + ":" + String(snapshot.permissions)).utf8) + recordData).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func validateSettingsRevision(_ revision: String, before: Snapshot, record: Record?) throws {
+        guard revision == (try settingsRevision(before, record)), record?.appliedDigest == nil || record?.appliedDigest == before.digest else {
+            throw failure(409, "configuration_changed", "配置已被其他操作修改，未覆盖文件。请重新读取后再编辑。")
+        }
+    }
+
+    private func details(_ tool: String, _ directory: SafeDirectory) throws -> [String: Any] {
+        let target = targets[tool]!, current = try record(tool, directory)
+        try validateRecord(current, target: target)
+        let snapshot = try snapshot(target)
+        let content = try ConfigurationDocument.redact(ConfigurationDocument.source(snapshot.data, tool: tool), tool: tool).content
+        let conflict = current?.appliedDigest != nil && current?.appliedDigest != snapshot.digest
+        let undo = try settingsUndo(tool, directory)
+        return ["tool": tool, "content": content, "fields": try ConfigurationDocument.fields(content, tool: tool),
+                "revision": try settingsRevision(snapshot, current), "mode": conflict ? "conflict" : current?.appliedDigest != nil ? "conpera" : "original",
+                "canUndo": !conflict && undo?.target == target.path && undo?.afterDigest == snapshot.digest && undo?.next == current,
+                "restartRequired": true]
     }
 
     func apply(tool: String, keyId: String, apiKey: String, baseURL: String, model: String? = nil) throws -> [String: Any] {
@@ -368,15 +460,16 @@ final class ConfigurationManager {
 
 /// A deliberately restricted, string-aware TOML editor. Unsupported constructs
 /// fail before journaling. Unrelated source lines are preserved byte-for-byte.
-private enum CodexConfigurationEditor {
-    private struct Entry { let line: Int; let path: [String] }
-    private struct Header { let line: Int; let path: [String] }
+enum CodexConfigurationEditor {
+    struct Entry { let line: Int; let path: [String]; let value: String; let prefix: String; let suffix: String }
+    struct Header { let line: Int; let path: [String] }
+    struct Document { let lines: [String]; let newline: String; let entries: [Entry]; let headers: [Header] }
 
     static func unsupported() -> ConfigurationManager.Failure {
         .init(status: 422, code: "unsupported_configuration", message: "Codex 配置包含暂不支持或无效的 TOML 格式，未作修改。")
     }
 
-    static func edit(_ data: Data?, key: String, endpoint: String, model: String?) throws -> Data {
+    static func parse(_ data: Data?) throws -> Document {
         let source: String
         if let data {
             guard let string = String(data: data, encoding: .utf8), !string.hasPrefix("\u{FEFF}") else { throw unsupported() }
@@ -408,18 +501,20 @@ private enum CodexConfigurationEditor {
                 let keys = try parser.path()
                 parser.whitespace()
                 guard parser.take("=") else { throw unsupported() }
+                parser.whitespace()
+                let start = parser.index
                 try parser.value()
+                let value = String(parser.characters[start..<parser.index])
+                let prefix = String(parser.characters[..<start])
+                let suffix = String(parser.characters[parser.index...])
                 try parser.finish()
                 let full = section + keys
                 guard assigned.insert(identity(full)).inserted else { throw unsupported() }
                 // Prefix assignments (inline tables / dotted keys) could collide
                 // with an owned table. Refuse them instead of guessing semantics.
-                if full.first == "model_providers" && (keys.count > 1 || section.isEmpty) { throw unsupported() }
-                entries.append(Entry(line: index, path: full))
+                entries.append(Entry(line: index, path: full, value: value, prefix: prefix, suffix: suffix))
             }
         }
-        let provider = ["model_providers", "conpera_switch"]
-        guard !headers.contains(where: { ["model", "model_provider"].contains($0.path.first ?? "") }) else { throw unsupported() }
         for entry in entries {
             for end in 1..<entry.path.count {
                 guard !assigned.contains(identity(Array(entry.path.prefix(end)))) else { throw unsupported() }
@@ -430,6 +525,19 @@ private enum CodexConfigurationEditor {
                 guard !assigned.contains(identity(Array(header.path.prefix(end)))) else { throw unsupported() }
             }
         }
+        return Document(lines: lines, newline: newline, entries: entries, headers: headers)
+    }
+
+    static func edit(_ data: Data?, key: String, endpoint: String, model: String?) throws -> Data {
+        let document = try parse(data)
+        let (lines, newline, entries, headers) = (document.lines, document.newline, document.entries, document.headers)
+        let provider = ["model_providers", "conpera_switch"]
+        guard !headers.contains(where: { ["model", "model_provider"].contains($0.path.first ?? "") }),
+              !entries.contains(where: { entry in
+                  guard entry.path.first == "model_providers" else { return false }
+                  let section = headers.last(where: { $0.line < entry.line })?.path ?? []
+                  return section.count + 1 != entry.path.count || section.isEmpty
+              }) else { throw unsupported() }
         let ownedHeaders = headers.filter { $0.path.starts(with: provider) }
         guard ownedHeaders.allSatisfy({ $0.path == provider }) else { throw unsupported() }
         let providerEntries = entries.filter { $0.path.starts(with: provider) }
@@ -465,8 +573,46 @@ private enum CodexConfigurationEditor {
         return Data((output.joined(separator: newline) + newline).utf8)
     }
 
+    static func string(_ value: String) throws -> String {
+        var parser = Parser(value)
+        let result = try parser.string()
+        guard parser.atEnd else { throw unsupported() }
+        return result
+    }
+
+    static func replacing(_ document: Document, values: [Int: String]) -> String {
+        document.lines.enumerated().map { index, line in values[index] ?? line }.joined(separator: document.newline) + document.newline
+    }
+
+    static func assignment(_ entry: Entry, value: String) -> String {
+        entry.prefix + value + entry.suffix
+    }
+
+    static func updateRoots(_ source: String, updates: [String: String?]) throws -> String {
+        let document = try parse(Data(source.utf8))
+        guard !document.headers.contains(where: { updates.keys.contains($0.path.first ?? "") }),
+              !document.entries.contains(where: { updates.keys.contains($0.path.first ?? "") && $0.path.count != 1 }) else { throw unsupported() }
+        let roots = document.entries.filter { $0.path.count == 1 && updates.keys.contains($0.path[0]) }
+        let removed = Set(roots.map(\.line))
+        let firstHeader = document.headers.first?.line ?? document.lines.count
+        var output: [String] = []
+        for index in 0...document.lines.count {
+            if index == firstHeader {
+                for key in updates.keys.sorted() { if let value = updates[key]! { output.append(key + " = " + value) } }
+            }
+            if index < document.lines.count && !removed.contains(index) { output.append(document.lines[index]) }
+        }
+        return output.joined(separator: document.newline) + document.newline
+    }
+
+    static func containsSensitiveValues(_ source: String, matching predicate: (String) -> Bool) throws -> Bool {
+        var parser = Parser(source)
+        try parser.value()
+        return parser.keysAndStrings.contains(where: predicate)
+    }
+
     private static func identity(_ path: [String]) -> String { path.map { "\($0.utf8.count):\($0)" }.joined(separator: "/") }
-    private static func quote(_ value: String) -> String {
+    static func quote(_ value: String) -> String {
         // JSON strings are valid TOML basic strings for the accepted control-free
         // inputs. JSONSerializer does not introduce unsupported slash escapes here.
         let data = try! JSONSerialization.data(withJSONObject: [value], options: [.withoutEscapingSlashes])
@@ -477,6 +623,7 @@ private enum CodexConfigurationEditor {
     private struct Parser {
         let characters: [Character]
         var index = 0
+        var keysAndStrings: [String] = []
         init(_ text: String) { characters = Array(text) }
         var atEnd: Bool { index >= characters.count }
         var peek: Character? { atEnd ? nil : characters[index] }
@@ -539,7 +686,7 @@ private enum CodexConfigurationEditor {
         mutating func value(depth: Int = 0) throws {
             guard depth < 32 else { throw unsupported() }
             whitespace()
-            if peek == "\"" || peek == "'" { _ = try string(); return }
+            if peek == "\"" || peek == "'" { keysAndStrings.append(try string()); return }
             if take("[") {
                 whitespace()
                 if take("]") { return }
@@ -557,6 +704,7 @@ private enum CodexConfigurationEditor {
                 var keys = Set<String>()
                 while true {
                     let key = try path()
+                    keysAndStrings.append(contentsOf: key)
                     guard keys.insert(identity(key)).inserted, take("=") else { throw unsupported() }
                     try value(depth: depth + 1); whitespace()
                     if take("}") { return }

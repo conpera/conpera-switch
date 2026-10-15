@@ -62,6 +62,81 @@ var count = 0
 }
 
 do {
+    let containers = "args = [\"--flag\", \"safe-value\"]\noptions = { enabled = true, count = 2 }\nprivate_options = { nested = { api_key = \"hidden-inline\" } }\nrefresh_tokens = [\"hidden-refresh\"]\nmodel_auto_compact_token_limit = 1000\n"
+    let redactedContainers = try ConfigurationDocument.redact(containers, tool: "codex").content
+    try check(redactedContainers.contains("args = [\"--flag\", \"safe-value\"]") && redactedContainers.contains("options = { enabled = true, count = 2 }"), "ordinary TOML arrays and inline tables remain editable")
+    try check(!redactedContainers.contains("hidden-inline") && !redactedContainers.contains("hidden-refresh") && redactedContainers.contains("model_auto_compact_token_limit = 1000"), "nested inline credentials and plural token keys are hidden, while token budgets remain visible")
+    let restoredContainers = try ConfigurationDocument.restore(redactedContainers.replacingOccurrences(of: "safe-value", with: "new-argument"), original: containers, tool: "codex", active: false)
+    try check(restoredContainers.contains("new-argument") && restoredContainers.contains("hidden-inline") && restoredContainers.contains("hidden-refresh"), "raw array edits preserve nested private values")
+    // Settings editing uses isolated files and keeps credential bytes native.
+    let (editorHome, editor) = try fixture("settings-editor")
+    let editorSource = Data(("# user's config\r\nmodel = \"old-model\"\r\nmodel_reasoning_effort = \"high\"\r\nmodel_context_window = 200_000\r\nmodel_auto_compact_token_limit = 150_000\r\n[mcp_servers.local]\r\ncommand = \"example\"\r\nargs = [\"safe-arg\"]\r\n[mcp_servers.local.env]\r\nAPI_KEY = \"" + syntheticKey + "\"\r\n").utf8)
+    try write(target(editorHome, "codex"), editorSource, mode: 0o640)
+    let readEditor = try editor.configurationDetails(tool: "codex")
+    let editorText = readEditor["content"] as! String
+    try check(!editorText.contains(syntheticKey) && editorText.contains("__CONPERA_PRIVATE_"), "raw TOML redacts credentials before bridge exposure")
+    let editorFields = readEditor["fields"] as! [String: String]
+    try check(editorFields["model_context_window"] == "200000" && editorFields["model_auto_compact_token_limit"] == "150000", "token limits remain readable instead of being redacted as credentials")
+    let editedText = try ConfigurationDocument.updating(editorText, tool: "codex", updates: ["model": "custom-model", "model_reasoning_effort": "xhigh", "model_auto_compact_token_limit": "175000"])
+    let savedEditor = try editor.saveConfiguration(tool: "codex", revision: readEditor["revision"] as! String, content: editedText)
+    let editorDisk = try text(target(editorHome, "codex"))
+    try check(editorDisk.contains("model = \"custom-model\"") && editorDisk.contains("model_auto_compact_token_limit = 175000") && editorDisk.contains(syntheticKey) && !editorDisk.contains("__CONPERA_PRIVATE_"), "form save persists native configuration and restores hidden credential values")
+    try check(editorDisk.contains("# user's config\r\n") && editorDisk.contains("command = \"example\"\r\n") && editorDisk.contains("args = [\"safe-arg\"]"), "settings editing preserves unrelated tables, values and CRLF")
+    try check(savedEditor["canUndo"] as? Bool == true && savedEditor["mode"] as? String == "original", "settings save does not enable Conpera and offers undo")
+    try check(try mode(target(editorHome, "codex")) == 0o600 && mode(state(editorHome).appendingPathComponent("codex.settings-undo.json")) == 0o600, "configuration edit and credential-bearing undo backup are private")
+    try expect("configuration_changed") { _ = try editor.saveConfiguration(tool: "codex", revision: readEditor["revision"] as! String, content: editedText) }
+    let undoEditor = try ConfigurationManager(home: editorHome).undoConfiguration(tool: "codex", revision: savedEditor["revision"] as! String)
+    try check(try Data(contentsOf: target(editorHome, "codex")) == editorSource && mode(target(editorHome, "codex")) == 0o640 && undoEditor["canUndo"] as? Bool == false, "undo survives restart and restores exact original bytes and permissions")
+    let currentEditor = try editor.configurationDetails(tool: "codex")
+    try expect("protected_settings") { _ = try editor.saveConfiguration(tool: "codex", revision: currentEditor["revision"] as! String, content: editorText.replacingOccurrences(of: "__CONPERA_PRIVATE_0__", with: "modified-secret")) }
+    try expect("unsupported_configuration") { _ = try editor.saveConfiguration(tool: "codex", revision: currentEditor["revision"] as! String, content: "model = \"unterminated") }
+    try expect("invalid_settings") { _ = try ConfigurationDocument.updating(editorText, tool: "codex", updates: ["model_context_window": "12.5"]) }
+    try expect("invalid_settings") { _ = try ConfigurationDocument.updating(editorText, tool: "codex", updates: ["model_auto_compact_token_limit": "250000"]) }
+    try expect("invalid_settings") { _ = try ConfigurationDocument.updating(editorText, tool: "codex", updates: ["api_key": "new-secret"]) }
+    try check(try Data(contentsOf: target(editorHome, "codex")) == editorSource, "invalid edits leave configuration unchanged")
+    try write(target(editorHome, "codex"), Data("# external edit\n".utf8))
+    try expect("configuration_changed") { _ = try editor.saveConfiguration(tool: "codex", revision: currentEditor["revision"] as! String, content: editedText) }
+    try check(try text(target(editorHome, "codex")) == "# external edit\n", "stale settings editor never overwrites external changes")
+
+    let (activeHome, activeEditor) = try fixture("settings-active")
+    let activeOriginal = Data("model = \"original-model\"\n".utf8)
+    try write(target(activeHome, "codex"), activeOriginal)
+    _ = try activeEditor.apply(tool: "codex", keyId: "same-key", apiKey: syntheticKey, baseURL: endpoint)
+    let activeRead = try activeEditor.configurationDetails(tool: "codex")
+    let activeUpdated = try ConfigurationDocument.updating(activeRead["content"] as! String, tool: "codex", updates: ["model": "active-custom-model"])
+    let activeSaved = try activeEditor.saveConfiguration(tool: "codex", revision: activeRead["revision"] as! String, content: activeUpdated)
+    try check(toolState(activeEditor.status(), "codex")["mode"] as? String == "conpera" && toolState(activeEditor.status(), "codex")["keyId"] as? String == "same-key", "editing active settings refreshes the applied digest and keeps the same key")
+    try expect("protected_settings") { _ = try activeEditor.saveConfiguration(tool: "codex", revision: activeSaved["revision"] as! String, content: (activeSaved["content"] as! String).replacingOccurrences(of: endpoint, with: "https://different.example/v1")) }
+    _ = try activeEditor.restore(tool: "codex")
+    try check(try Data(contentsOf: target(activeHome, "codex")) == activeOriginal, "restoring original mode retains the pre-Conpera backup after settings edits")
+    try check(try activeEditor.configurationDetails(tool: "codex")["canUndo"] as? Bool == false, "mode changes invalidate old settings undo")
+
+    let (jsonHome, jsonEditor) = try fixture("settings-json")
+    let jsonOriginal = try JSONSerialization.data(withJSONObject: ["model": "old-claude", "alwaysThinkingEnabled": true, "env": ["ANTHROPIC_MODEL": "env-model", "ANTHROPIC_AUTH_TOKEN": syntheticKey, "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000", "UNRELATED": "keep"], "permissions": ["allow": ["Read"]], "mcpServers": ["example": ["headers": ["Authorization": "Bearer " + syntheticKey]]]], options: [.sortedKeys])
+    try write(target(jsonHome, "claude"), jsonOriginal)
+    let jsonRead = try jsonEditor.configurationDetails(tool: "claude")
+    try check(!(jsonRead["content"] as! String).contains(syntheticKey) && (jsonRead["fields"] as! [String: String])["maxOutputTokens"] == "64000", "JSON hides nested authorization and keeps output limit visible")
+    try check((jsonRead["fields"] as! [String: String])["model"] == "env-model", "Claude form reads the higher-precedence model environment override")
+    let jsonEdited = try ConfigurationDocument.updating(jsonRead["content"] as! String, tool: "claude", updates: ["model": "custom-claude", "alwaysThinkingEnabled": "false", "maxOutputTokens": "32000"])
+    let jsonSaved = try jsonEditor.saveConfiguration(tool: "claude", revision: jsonRead["revision"] as! String, content: jsonEdited)
+    let jsonDisk = try JSONSerialization.jsonObject(with: Data(contentsOf: target(jsonHome, "claude"))) as! [String: Any]
+    let jsonEnvironment = jsonDisk["env"] as! [String: String]
+    try check(jsonDisk["model"] as? String == "custom-claude" && jsonEnvironment["ANTHROPIC_MODEL"] == "custom-claude" && jsonDisk["alwaysThinkingEnabled"] as? Bool == false && jsonEnvironment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "32000", "Claude form saves effective model override, thinking flag and output limit")
+    try check(jsonEnvironment["ANTHROPIC_AUTH_TOKEN"] == syntheticKey && jsonEnvironment["UNRELATED"] == "keep" && (jsonDisk["permissions"] as! [String: [String]])["allow"] == ["Read"], "Claude save preserves credential and unrelated permission rules")
+    try expect("invalid_settings") { _ = try jsonEditor.saveConfiguration(tool: "claude", revision: jsonSaved["revision"] as! String, content: "{invalid}") }
+    let jsonCleared = try ConfigurationDocument.updating(jsonSaved["content"] as! String, tool: "claude", updates: ["model": "", "alwaysThinkingEnabled": "", "maxOutputTokens": ""])
+    let clearObject = try JSONSerialization.jsonObject(with: Data(jsonCleared.utf8)) as! [String: Any]
+    try check(clearObject["model"] == nil && clearObject["alwaysThinkingEnabled"] == nil && (clearObject["env"] as! [String: Any])["ANTHROPIC_MODEL"] == nil && (clearObject["env"] as! [String: Any])["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == nil, "default form selections remove only the chosen overrides")
+    _ = try jsonEditor.undoConfiguration(tool: "claude", revision: jsonSaved["revision"] as! String)
+    try check(try Data(contentsOf: target(jsonHome, "claude")) == jsonOriginal, "Claude undo restores exact original JSON bytes")
+
+    let (missingSettingsHome, missingSettings) = try fixture("settings-absent")
+    let missingRead = try missingSettings.configurationDetails(tool: "claude")
+    try check(!fm.fileExists(atPath: target(missingSettingsHome, "claude").path), "reading settings does not create a missing client file")
+    let missingSaved = try missingSettings.saveConfiguration(tool: "claude", revision: missingRead["revision"] as! String, content: "{\"model\":\"new-model\"}")
+    _ = try missingSettings.undoConfiguration(tool: "claude", revision: missingSaved["revision"] as! String)
+    try check(!fm.fileExists(atPath: target(missingSettingsHome, "claude").path), "undo removes a client file created by settings editing")
+
     let (emptyHome, empty) = try fixture("empty")
     try check(toolState(empty.status(), "codex")["mode"] as? String == "original", "initial status is original")
     try check(!fm.fileExists(atPath: target(emptyHome, "codex").path), "status does not create client configuration")
