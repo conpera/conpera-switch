@@ -1,3 +1,5 @@
+> 历史设计与验收记录；1.0 当前实现和构建入口见 [README](../README.md)。
+
 # Conpera Switch 登录态设计（历史方案）
 
 **2026-10-08 更新：** 当前已实现的 `/api/switch/*` 契约见 [BETA.md](BETA.md) 和相邻后端工作树的 `docs/architecture/conpera-switch.md`。以下是此前方案，不代表已部署接口。当前内测采用从属于中央网站会话的专用桌面令牌（最长 7 天，无独立 refresh token）；网站退出会使桌面失效，授权包含本人密钥读取与原生配置写入。

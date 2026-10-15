@@ -4,7 +4,7 @@ import ConperaSelect from './ConperaSelect';
 import { ClaudeMark, ConperaMark } from './BrandMarks';
 import WelcomeScreen from './WelcomeScreen';
 import { AccountMenu, AnimatedBalance, Presence, Toast, cardHover, reducedMotion } from './Motion';
-import { isBeta, nativeCall, NativeError } from './native';
+import { isNative, edition, nativeCall, NativeError } from './native';
 
 type Tool = 'codex' | 'claude';
 type Mode = 'original' | 'conpera';
@@ -32,7 +32,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const base64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 class ApiError extends Error { constructor(public status: number, message: string, public code = '') { super(message); } }
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (isBeta) {
+  if (isNative) {
     try {
       if (path === '/session') return await nativeCall<T>(init.method === 'DELETE' ? 'logout' : 'session');
       if (path === '/balance') return await nativeCall<T>('balance');
@@ -47,7 +47,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return response.status === 204 ? undefined as T : response.json();
 }
 function readTools(): Record<Tool, ToolState> {
-  if (isBeta) return { codex: { mode: 'unavailable', keyId: '' }, claude: { mode: 'unavailable', keyId: '' } };
+  if (isNative) return { codex: { mode: 'unavailable', keyId: '' }, claude: { mode: 'unavailable', keyId: '' } };
   try {
     const value = JSON.parse(localStorage.getItem('conpera-switch-demo:tools') || 'null');
     if (value && ['codex', 'claude'].every(t => ['original', 'conpera'].includes(value[t]?.mode))) {
@@ -129,7 +129,7 @@ function Dashboard() {
     native.webkit?.messageHandlers?.windowLayout?.postMessage(welcomeVisible ? 'welcome' : 'dashboard');
   }, [welcomeVisible]);
   const [tools, setTools] = useState(readTools);
-  const [keys, setKeys] = useState<DemoKey[]>(isBeta ? [] : initialKeys);
+  const [keys, setKeys] = useState<DemoKey[]>(isNative ? [] : initialKeys);
   const [configurationError, setConfigurationError] = useState('');
   const nativeLoginLocked = useRef(false);
   const nativeLoginId = useRef(0);
@@ -147,7 +147,7 @@ function Dashboard() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
-  const [balanceCurrency, setBalanceCurrency] = useState<'CNY' | 'USD' | null>(isBeta ? null : 'CNY');
+  const [balanceCurrency, setBalanceCurrency] = useState<'CNY' | 'USD' | null>(isNative ? null : 'CNY');
   const [balanceBusy, setBalanceBusy] = useState(false);
   const [balanceError, setBalanceError] = useState('');
 
@@ -162,15 +162,15 @@ function Dashboard() {
   const switchLocked = useRef(false);
   const numActive = Object.values(tools).filter(t => t.mode === 'conpera').length;
   function notify(message: string) { setToast(message); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 3600); }
-  useEffect(() => { if (!isBeta) localStorage.setItem('conpera-switch-demo:tools', JSON.stringify(tools)); }, [tools]);
+  useEffect(() => { if (!isNative) localStorage.setItem('conpera-switch-demo:tools', JSON.stringify(tools)); }, [tools]);
   useEffect(() => () => { window.clearTimeout(toastTimer.current); window.clearTimeout(welcomeTimer.current); }, []);
-  function expireSession(message = '') { if (message) { setLoginError(message); setConfigurationError(message); } sessionEpoch.current++; if (isBeta) { setKeys([]); setBalanceCurrency(null); } setSession(null); setSessionStatus('expired'); setBalance(null); setBalanceError(''); setBalanceBusy(false); }
+  function expireSession(message = '') { if (message) { setLoginError(message); setConfigurationError(message); } sessionEpoch.current++; if (isNative) { setKeys([]); setBalanceCurrency(null); } setSession(null); setSessionStatus('expired'); setBalance(null); setBalanceError(''); setBalanceBusy(false); }
   async function loadSession(initial = false) {
     if (authRef.current || nativeLoginLocked.current || accountLocked.current) return;
     const epoch = sessionEpoch.current; const readId = ++sessionReadId.current;
     const current = () => epoch === sessionEpoch.current && readId === sessionReadId.current;
     try { const next = await api<Session>('/session'); if (current()) { setSession(next); setSessionStatus('connected'); if (initializingSession.current) setWelcomeVisible(false); initializingSession.current = false; } }
-    catch (err) { if (!current()) return; if (err instanceof ApiError && [401, 403].includes(err.status)) { sessionEpoch.current++; if (isBeta) { setKeys([]); setBalanceCurrency(null); } if (err.status === 403) { setLoginError(err.message); setConfigurationError(err.message); } setBalanceBusy(false); setSession(null); setBalance(null); setSessionStatus(status => initial || status === 'guest' || status === 'loading' || status === 'offline' ? 'guest' : 'expired'); } else if (initializingSession.current) setSessionStatus('offline'); initializingSession.current = false; }
+    catch (err) { if (!current()) return; if (err instanceof ApiError && [401, 403].includes(err.status)) { sessionEpoch.current++; if (isNative) { setKeys([]); setBalanceCurrency(null); } if (err.status === 403) { setLoginError(err.message); setConfigurationError(err.message); } setBalanceBusy(false); setSession(null); setBalance(null); setSessionStatus(status => initial || status === 'guest' || status === 'loading' || status === 'offline' ? 'guest' : 'expired'); } else if (initializingSession.current) setSessionStatus('offline'); initializingSession.current = false; }
   }
   useEffect(() => { void loadSession(true); const focus = () => void loadSession(); window.addEventListener('focus', focus); return () => window.removeEventListener('focus', focus); }, []);
   async function refreshBalance() {
@@ -178,7 +178,7 @@ function Dashboard() {
     if (balanceLocked.current === epoch || accountLocked.current) return;
     balanceLocked.current = epoch;
     setBalanceBusy(true); setBalanceError('');
-    try { const data = await api<{ balance: number; updatedAt: string; currency?: 'CNY' | 'USD' }>('/balance'); if (epoch === sessionEpoch.current) { setBalance(data.balance); setBalanceCurrency(data.currency || (isBeta ? null : 'CNY')); } }
+    try { const data = await api<{ balance: number; updatedAt: string; currency?: 'CNY' | 'USD' }>('/balance'); if (epoch === sessionEpoch.current) { setBalance(data.balance); setBalanceCurrency(data.currency || (isNative ? null : 'CNY')); } }
     catch (err) { if (epoch !== sessionEpoch.current) return; if (err instanceof ApiError && [401, 403].includes(err.status)) expireSession(err.status === 403 ? err.message : ''); else setBalanceError('余额暂不可用，请重试'); }
     finally { if (balanceLocked.current === epoch) balanceLocked.current = null; if (epoch === sessionEpoch.current) setBalanceBusy(false); }
   }
@@ -191,7 +191,7 @@ function Dashboard() {
     })) as Record<Tool, ToolState>);
   }
   useEffect(() => {
-    if (!isBeta || !session) return;
+    if (!isNative || !session) return;
     const epoch = sessionEpoch.current;
     let cancelled = false;
     setConfigurationError('');
@@ -212,7 +212,7 @@ function Dashboard() {
     authRef.current = null; setLoginBusy(false);
   }
   function closeLogin() {
-    if (isBeta) { nativeLoginId.current++; nativeLoginLocked.current = false; void nativeCall('cancelLogin').catch(() => {}); setLoginBusy(false); setLoginOpen(false); setLoginError(''); return; }
+    if (isNative) { nativeLoginId.current++; nativeLoginLocked.current = false; void nativeCall('cancelLogin').catch(() => {}); setLoginBusy(false); setLoginOpen(false); setLoginError(''); return; }
     if (authRef.current?.phase === 'exchanging') { setLoginError('正在完成连接，请稍候。连接后可从账户菜单退出。'); return; }
     cleanupAuth(true); setLoginOpen(false); setLoginError('');
   }
@@ -224,7 +224,7 @@ function Dashboard() {
     location.assign(`/authorize?request=${encodeURIComponent(current.requestId)}`);
   }
   async function startLogin() {
-    if (isBeta) {
+    if (isNative) {
       if (nativeLoginLocked.current || accountLocked.current) return;
       nativeLoginLocked.current = true;
       const attempt = ++nativeLoginId.current;
@@ -293,7 +293,7 @@ function Dashboard() {
   async function switchMode(target: Tool | 'all', mode: Mode) {
     if (switchLocked.current) return;
     switchLocked.current = true; setBusy(target);
-    if (isBeta) {
+    if (isNative) {
       setConfigurationError('');
       let completed = 0;
       try {
@@ -323,7 +323,7 @@ function Dashboard() {
     setLastAction(action); notify(`${action} · 演示`); setBusy(null); switchLocked.current = false;
   }
   async function selectKey(tool: Tool, keyId: string) {
-    if (isBeta) {
+    if (isNative) {
       if (switchLocked.current || tools[tool].mode === 'unavailable' || !keys.some(k => k.tool === tool && k.id === keyId)) return;
       if (tools[tool].mode === 'original') { setTools(previous => ({ ...previous, [tool]: { ...previous[tool], keyId } })); return; }
       switchLocked.current = true; setBusy(tool); setConfigurationError('');
@@ -350,23 +350,23 @@ function Dashboard() {
     if (accountLocked.current || authRef.current || nativeLoginLocked.current || busy) return;
     accountLocked.current = true; sessionEpoch.current++; setBalanceBusy(false); balanceLocked.current = null;
     setAccountBusy(true);
-    try { await api(expire ? '/session/expire' : '/session', { method: expire ? 'POST' : 'DELETE' }); setSession(null); if (isBeta) { setKeys([]); setBalanceCurrency(null); setTools(readTools()); setConfigurationError(''); } setSessionStatus(expire ? 'expired' : 'guest'); setBalance(null); setBalanceError(''); if (expire) notify('已模拟登录过期'); else { setWelcomePhase('ready'); setLoginError(''); setWelcomeVisible(true); } }
-    catch (error) { if (isBeta && error instanceof ApiError && error.code === 'logout_remote_unconfirmed') { setSession(null); setKeys([]); setBalanceCurrency(null); setTools(readTools()); setBalance(null); setSessionStatus('guest'); setWelcomePhase('ready'); setWelcomeVisible(true); setLoginError((error as Error).message || '本机已退出，远端撤销未完成。'); } else notify((error as Error).message || '暂时无法退出，请重试'); } finally { accountLocked.current = false; setAccountBusy(false); }
+    try { await api(expire ? '/session/expire' : '/session', { method: expire ? 'POST' : 'DELETE' }); setSession(null); if (isNative) { setKeys([]); setBalanceCurrency(null); setTools(readTools()); setConfigurationError(''); } setSessionStatus(expire ? 'expired' : 'guest'); setBalance(null); setBalanceError(''); if (expire) notify('已模拟登录过期'); else { setWelcomePhase('ready'); setLoginError(''); setWelcomeVisible(true); } }
+    catch (error) { if (isNative && error instanceof ApiError && error.code === 'logout_remote_unconfirmed') { setSession(null); setKeys([]); setBalanceCurrency(null); setTools(readTools()); setBalance(null); setSessionStatus('guest'); setWelcomePhase('ready'); setWelcomeVisible(true); setLoginError((error as Error).message || '本机已退出，远端撤销未完成。'); } else notify((error as Error).message || '暂时无法退出，请重试'); } finally { accountLocked.current = false; setAccountBusy(false); }
   }
   return <>
-    {welcomeVisible ? sessionStatus === 'loading' ? <main className="startup-screen" aria-label="正在载入 Conpera"><Wordmark/><span className="startup-line"/></main> : <WelcomeScreen phase={loginBusy ? 'connecting' : welcomePhase} error={loginError || (sessionStatus === 'offline' ? '账户服务暂不可用，请重试。' : '')} onLogin={() => void startLogin()} onCancel={closeLogin} onContinueHere={isBeta ? undefined : continueHere} edition={isBeta ? 'BETA' : 'DEMO'}/> : <div className="app-shell view-enter">
+    {welcomeVisible ? sessionStatus === 'loading' ? <main className="startup-screen" aria-label="正在载入 Conpera"><Wordmark/><span className="startup-line"/></main> : <WelcomeScreen phase={loginBusy ? 'connecting' : welcomePhase} error={loginError || (sessionStatus === 'offline' ? '账户服务暂不可用，请重试。' : '')} onLogin={() => void startLogin()} onCancel={closeLogin} onContinueHere={isNative ? undefined : continueHere} edition={edition}/> : <div className="app-shell view-enter">
     <header className="topbar">
       <a className="brand" href="/" aria-label="Conpera Switch 首页"><Wordmark/><span className="product-name">Switch</span></a>
       <div className="topbar-actions">
-        <span className="demo-tag" title={isBeta ? '内测版 · test 与 admin' : '仅演示，不读取或修改本机配置'}>{isBeta ? 'BETA' : 'DEMO'}</span>
-        <button className="icon-button" aria-label={numActive === 2 ? '全部恢复原机' : '全部启用 Conpera'} title={numActive === 2 ? '全部恢复原机' : '全部启用 Conpera'} onClick={() => void switchMode('all', numActive === 2 ? 'original' : 'conpera')} disabled={!!busy || (isBeta && numActive !== 2 && (!session || Object.values(tools).some(t => t.mode === 'unavailable')))}>{busy === 'all' ? <LoaderCircle className="spin" size={18}/> : <ArrowLeftRight size={18}/>}</button>
-        <button className="icon-button" aria-label={isBeta ? '关于 Conpera Switch' : '关于此演示'} title={isBeta ? '使用说明' : '演示说明'} onClick={() => setHelp(true)}><CircleHelp size={18}/></button>
+        <span className="demo-tag" title={isNative ? 'Conpera Switch · 连接您的账户' : '仅演示，不读取或修改本机配置'}>{edition}</span>
+        <button className="icon-button" aria-label={numActive === 2 ? '全部恢复原机' : '全部启用 Conpera'} title={numActive === 2 ? '全部恢复原机' : '全部启用 Conpera'} onClick={() => void switchMode('all', numActive === 2 ? 'original' : 'conpera')} disabled={!!busy || (isNative && numActive !== 2 && (!session || Object.values(tools).some(t => t.mode === 'unavailable')))}>{busy === 'all' ? <LoaderCircle className="spin" size={18}/> : <ArrowLeftRight size={18}/>}</button>
+        <button className="icon-button" aria-label={isNative ? '关于 Conpera Switch' : '关于此演示'} title={isNative ? '使用说明' : '演示说明'} onClick={() => setHelp(true)}><CircleHelp size={18}/></button>
       </div>
     </header>
     <main className="workspace">
       <section className="tools-panel" aria-label="工具配置切换">
         {(['codex', 'claude'] as Tool[]).map(tool => {
-          const state = tools[tool]; const active = state.mode === 'conpera'; const selected = keys.find(k => k.id === state.keyId) || (isBeta ? { id: '', suffix: '—', name: '暂无可用密钥', channel: '' } : initialKeys.find(k => k.tool === tool)!);
+          const state = tools[tool]; const active = state.mode === 'conpera'; const selected = keys.find(k => k.id === state.keyId) || (isNative ? { id: '', suffix: '—', name: '暂无可用密钥', channel: '' } : initialKeys.find(k => k.tool === tool)!);
           const waiting = busy === tool || busy === 'all';
           return <article className={`tool-card ${active ? 'is-active' : ''} ${waiting ? 'is-busy' : ''}`} key={tool} aria-busy={waiting} data-testid={`tool-${tool}`} {...cardHover}>
             <div className="card-top"><ToolIcon tool={tool}/><span className={`status ${active ? 'active' : ''}`} title={waiting ? '切换中' : active ? 'Conpera 已启用' : state.mode === 'conflict' ? '配置已在外部修改' : state.mode === 'unavailable' ? '配置未读取' : '原机配置'}>{waiting ? <LoaderCircle className="spin" size={14}/> : <i/>}<span className="sr-only">{waiting ? '切换中' : active ? 'Conpera 已启用' : state.mode === 'conflict' ? '配置已在外部修改' : state.mode === 'unavailable' ? '配置未读取' : '原机配置'}</span></span></div>
@@ -374,9 +374,9 @@ function Dashboard() {
             <div className={`switch-track ${active ? 'at-conpera' : state.mode === 'original' ? 'at-original' : 'at-unknown'}`} aria-label={`${toolNames[tool]} 配置来源`}>
               <span className="switch-thumb" aria-hidden="true"/>
               <button aria-label="原机配置" aria-pressed={state.mode === 'original'} disabled={!!busy} onClick={() => state.mode === 'original' || void switchMode(tool, 'original')} className={state.mode === 'original' ? 'selected' : ''}>原机{state.mode === 'original' && <Check size={13}/>}</button>
-              <button aria-label="Conpera" aria-pressed={active} disabled={!!busy || (isBeta && (!session || !selected.id || state.mode === 'unavailable'))} onClick={() => active || void switchMode(tool, 'conpera')} className={active ? 'selected conpera-selected' : ''}>Conpera{active && <Check size={13}/>}</button>
+              <button aria-label="Conpera" aria-pressed={active} disabled={!!busy || (isNative && (!session || !selected.id || state.mode === 'unavailable'))} onClick={() => active || void switchMode(tool, 'conpera')} className={active ? 'selected conpera-selected' : ''}>Conpera{active && <Check size={13}/>}</button>
             </div>
-            <ConperaSelect className="channel-select" label={`${toolNames[tool]} 渠道与密钥`} value={selected.id} onChange={keyId => void selectKey(tool, keyId)} disabled={!!busy || (isBeta && (!session || state.mode === 'unavailable'))} options={keys.filter(k => k.tool === tool).map(k => ({ value: k.id, label: `${k.channel} / ${k.name}` }))}/>
+            <ConperaSelect className="channel-select" label={`${toolNames[tool]} 渠道与密钥`} value={selected.id} onChange={keyId => void selectKey(tool, keyId)} disabled={!!busy || (isNative && (!session || state.mode === 'unavailable'))} options={keys.filter(k => k.tool === tool).map(k => ({ value: k.id, label: `${k.channel} / ${k.name}` }))}/>
             <button className="key-edit" onClick={() => { setKeyTool(tool); setKeyError(''); }} aria-label={`管理 ${toolNames[tool]} 密钥`} title="管理密钥"><KeyRound size={16}/><code key={selected.id}>···· {selected.suffix}</code><ChevronRight size={17}/></button>
           </article>;
         })}
@@ -388,8 +388,8 @@ function Dashboard() {
         {session ? <>
           {balanceError && <p className="error-text" role="alert">{balanceError}</p>}
           <div className="account-footer">
-            <AccountMenu email={session.user.email}><p className="menu-caption">{session.user.name}</p>{isBeta && <p className="menu-caption">退出后保留客户端配置</p>}{!isBeta && <button onClick={() => void logout(true)} disabled={accountBusy}><RotateCcw size={14}/>模拟登录过期</button>}</AccountMenu>
-            <button className="account-logout" aria-label="退出登录" aria-busy={accountBusy} title={isBeta ? '退出登录，保留已应用的客户端配置' : '退出登录'} onClick={() => void logout()} disabled={accountBusy || !!busy}>{accountBusy ? <LoaderCircle className="spin" size={14}/> : <LogOut size={14}/>}<span>{accountBusy ? '退出中…' : '退出登录'}</span></button>
+            <AccountMenu email={session.user.email}><p className="menu-caption">{session.user.name}</p>{isNative && <p className="menu-caption">退出后保留客户端配置</p>}{!isNative && <button onClick={() => void logout(true)} disabled={accountBusy}><RotateCcw size={14}/>模拟登录过期</button>}</AccountMenu>
+            <button className="account-logout" aria-label="退出登录" aria-busy={accountBusy} title={isNative ? '退出登录，保留已应用的客户端配置' : '退出登录'} onClick={() => void logout()} disabled={accountBusy || !!busy}>{accountBusy ? <LoaderCircle className="spin" size={14}/> : <LogOut size={14}/>}<span>{accountBusy ? '退出中…' : '退出登录'}</span></button>
           </div>
         </> : <>
           {sessionStatus === 'expired' && <p className="session-warning" role="status">登录已过期</p>}
@@ -399,23 +399,23 @@ function Dashboard() {
       </aside>
     </main>
     {configurationError && <p className="configuration-notice" role="alert">{configurationError}</p>}
-    {isBeta && Object.values(tools).some(tool => tool.mode === 'conflict') && <p className="configuration-notice" role="alert">检测到外部配置修改，已暂停覆盖。原机备份仍保留。</p>}
+    {isNative && Object.values(tools).some(tool => tool.mode === 'conflict') && <p className="configuration-notice" role="alert">检测到外部配置修改，已暂停覆盖。原机备份仍保留。</p>}
     <p className="sr-only" role="status">{lastAction}</p>
     </div>}
     <Presence visible={!!toast && !welcomeVisible}><Toast message={toast}/></Presence>
     <Presence visible={loginOpen}><Modal title="登录 Conpera" onClose={closeLogin}>
-      <p className="modal-copy">{isBeta ? '在系统浏览器中登录 Conpera，连接账户与密钥。' : '登录后查看余额。'}</p>
+      <p className="modal-copy">{isNative ? '在系统浏览器中登录 Conpera，连接账户与密钥。' : '登录后查看余额。'}</p>
       {loginError && <p className="error-text" role="alert">{loginError}</p>}
-      <button className="button primary block" disabled={loginBusy} onClick={() => void startLogin()}>{loginBusy ? <><LoaderCircle className="spin" size={16}/>等待授权</> : <>{isBeta ? '在系统浏览器中继续' : isMacApp ? '打开授权窗口' : '在浏览器中继续'}<ExternalLink size={15}/></>}</button>
-      {loginBusy && !isBeta && <button className="button text-button block" onClick={continueHere}>授权窗口未出现？在此继续<ArrowUpRight size={14}/></button>}
-      {!isBeta && <p className="modal-footnote">演示账户 · 无需密码</p>}
+      <button className="button primary block" disabled={loginBusy} onClick={() => void startLogin()}>{loginBusy ? <><LoaderCircle className="spin" size={16}/>等待授权</> : <>{isNative ? '在系统浏览器中继续' : isMacApp ? '打开授权窗口' : '在浏览器中继续'}<ExternalLink size={15}/></>}</button>
+      {loginBusy && !isNative && <button className="button text-button block" onClick={continueHere}>授权窗口未出现？在此继续<ArrowUpRight size={14}/></button>}
+      {!isNative && <p className="modal-footnote">演示账户 · 无需密码</p>}
     </Modal></Presence>
     <Presence visible={!!keyTool}>{keyTool && <Modal title={`${toolNames[keyTool]} · 密钥`} onClose={() => setKeyTool(null)} wide>
       <div className="key-list">{keys.filter(k => k.tool === keyTool).map(k => <button className={`key-item ${tools[keyTool].keyId === k.id ? 'chosen' : ''}`} key={k.id} onClick={() => selectKey(keyTool, k.id)}><KeyRound size={18}/><span><strong>{k.name}</strong><small>{k.channel} <span>· ···· {k.suffix}</span></small></span>{tools[keyTool].keyId === k.id ? <Check size={17}/> : <ArrowRight size={17}/>}</button>)}</div>
-      {!isBeta && <form className="add-key" onSubmit={e => { e.preventDefault(); addKey(); }}><div className="add-key-fields"><label>名称<input value={newName} maxLength={24} onChange={e => { setNewName(e.target.value); setKeyError(''); }} placeholder="新密钥"/></label><div className="field"><span>渠道</span><ConperaSelect className="form-select" label="新密钥渠道" value={newChannel} onChange={setNewChannel} options={['标准渠道', '优先渠道'].map(channel => ({ value: channel, label: channel }))}/></div></div>{keyError && <p role="alert" className="error-text">{keyError}</p>}<button type="submit" className="button block">添加并选择<Plus size={14}/></button></form>}
-      <p className="modal-footnote">{isBeta ? '密钥从当前账户同步，仅显示尾号；可在 Conpera 网站管理。' : '仅演示，不接收真实 API Key。'}</p>
+      {!isNative && <form className="add-key" onSubmit={e => { e.preventDefault(); addKey(); }}><div className="add-key-fields"><label>名称<input value={newName} maxLength={24} onChange={e => { setNewName(e.target.value); setKeyError(''); }} placeholder="新密钥"/></label><div className="field"><span>渠道</span><ConperaSelect className="form-select" label="新密钥渠道" value={newChannel} onChange={setNewChannel} options={['标准渠道', '优先渠道'].map(channel => ({ value: channel, label: channel }))}/></div></div>{keyError && <p role="alert" className="error-text">{keyError}</p>}<button type="submit" className="button block">添加并选择<Plus size={14}/></button></form>}
+      <p className="modal-footnote">{isNative ? '密钥从当前账户同步，仅显示尾号；可在 Conpera 网站管理。' : '仅演示，不接收真实 API Key。'}</p>
     </Modal>}</Presence>
-    <Presence visible={help}><Modal title={isBeta ? '使用说明' : '演示说明'} onClose={() => setHelp(false)}><p className="modal-copy">{isBeta ? <>仅向 test 用户和 admin 开放。<br/>切换前保存原机备份，写入后请重启对应客户端。<br/>检测到外部修改时会停止覆盖。退出登录后可从应用菜单恢复原机配置。</> : <>配置、密钥和余额均为演示数据。<br/>不会读取或修改本机配置。</>}</p><button className="button primary block" onClick={() => setHelp(false)}>知道了<Check size={15}/></button></Modal></Presence>
+    <Presence visible={help}><Modal title={isNative ? '使用说明' : '演示说明'} onClose={() => setHelp(false)}><p className="modal-copy">{isNative ? <>连接您的 Conpera 账户，选择本人密钥。<br/>切换前保存原机备份，写入后请重启对应客户端。<br/>检测到外部修改时会停止覆盖。退出登录后可从应用菜单恢复原机配置。</> : <>配置、密钥和余额均为演示数据。<br/>不会读取或修改本机配置。</>}</p><button className="button primary block" onClick={() => setHelp(false)}>知道了<Check size={15}/></button></Modal></Presence>
   </>;
 }
 export default function App() { return location.pathname === '/authorize' ? <Authorization/> : <Dashboard/>; }

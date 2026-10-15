@@ -1,15 +1,20 @@
 import { execFileSync } from 'node:child_process';
-import { access, cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { access, cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const releaseRoot = path.join(projectRoot, 'release');
 const beta = process.argv.includes('--beta');
+const demo = process.argv.includes('--demo');
+if (beta && demo) throw new Error('Choose only one edition.');
+const native = !demo;
+const version = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8')).version;
+if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version.');
+const releaseRoot = path.join(projectRoot, 'release', native && !beta ? version : '');
 const appName = beta ? 'Conpera Switch Beta.app' : 'Conpera Switch.app';
 const destination = path.join(releaseRoot, appName);
-const bundleIdentifier = beta ? 'ai.conpera.switch.beta' : 'ai.conpera.switch.demo';
+const bundleIdentifier = beta ? 'ai.conpera.switch.beta' : demo ? 'ai.conpera.switch.demo' : 'ai.conpera.switch';
 const architecture = { arm64: 'arm64', x64: 'x86_64' }[process.arch];
 
 function run(command, args, options = {}) {
@@ -52,10 +57,17 @@ try {
   await cp(path.join(projectRoot, 'native', 'Info.plist'), path.join(contents, 'Info.plist'));
   await cp(path.join(projectRoot, 'dist'), path.join(resources, 'web'), { recursive: true });
 
-  if (beta) {
-    for (const [key, value] of Object.entries({ CFBundleIdentifier: bundleIdentifier, CFBundleDisplayName: 'Conpera Switch Beta', CFBundleName: 'Conpera Switch Beta', CFBundleShortVersionString: '0.2.0', CFBundleVersion: '2', NSHumanReadableCopyright: 'Conpera Switch — private beta' })) {
-      run('/usr/bin/plutil', ['-replace', key, '-string', value, path.join(contents, 'Info.plist')]);
-    }
+  for (const [key, value] of Object.entries({
+    CFBundleIdentifier: bundleIdentifier,
+    CFBundleDisplayName: beta ? 'Conpera Switch Beta' : 'Conpera Switch',
+    CFBundleName: beta ? 'Conpera Switch Beta' : 'Conpera Switch',
+    CFBundleShortVersionString: beta ? '0.2.0' : demo ? '0.1.0' : version,
+    CFBundleVersion: beta ? '2' : '1',
+  })) {
+    run('/usr/bin/plutil', ['-replace', key, '-string', value, path.join(contents, 'Info.plist')]);
+  }
+  for (const name of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) {
+    await cp(path.join(projectRoot, name), path.join(resources, name));
   }
 
   run('/usr/bin/xcrun', [
@@ -63,11 +75,12 @@ try {
     '-target', `${architecture}-apple-macosx13.0`,
     '-framework', 'AppKit', '-framework', 'WebKit',
     '-framework', 'Network', '-framework', 'CryptoKit', '-framework', 'Security',
+    ...(native ? ['-D', 'SWITCH_NATIVE'] : []),
     ...(beta ? ['-D', 'SWITCH_BETA'] : []),
     '-o', executable,
     path.join(projectRoot, 'native', 'main.swift'),
     path.join(projectRoot, 'native', 'LocalDemoServer.swift'),
-    ...(beta ? ['AccountClient.swift', 'CredentialStore.swift', 'AuthorizationCallback.swift', 'ConfigurationManager.swift', 'SwitchRuntime.swift'].map(name => path.join(projectRoot, 'native', name)) : []),
+    ...(native ? ['AccountClient.swift', 'CredentialStore.swift', 'AuthorizationCallback.swift', 'ConfigurationManager.swift', 'SwitchRuntime.swift'].map(name => path.join(projectRoot, 'native', name)) : []),
   ]);
 
   const iconGenerator = path.join(scratch, 'generate-icon');
@@ -106,7 +119,7 @@ try {
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', destination]);
   console.log(`\nBuilt ${destination}`);
   console.log(`Architecture: ${architecture}; minimum macOS: 13.0.`);
-  console.log(beta ? 'Native beta: real account bridge and reversible local configuration.' : 'Self-contained demo: the installed app needs no Node.js or npm process.');
+  console.log(native ? `Native ${beta ? 'beta' : version}: real account bridge and reversible local configuration.` : 'Self-contained demo: the installed app needs no Node.js or npm process.');
   console.log('Signed ad hoc for local use; not Developer ID signed or notarized.');
 } finally {
   await rm(scratch, { recursive: true, force: true });

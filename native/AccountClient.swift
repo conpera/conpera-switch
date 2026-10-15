@@ -255,7 +255,7 @@ actor AccountClient {
         switch response.statusCode {
         case 200...299: break
         case 401: throw AccountError("unauthenticated", "登录已过期，请重新登录。", status: 401)
-        case 403: throw AccountError("forbidden", "当前账户暂无 Conpera Switch 内测权限，仅对 test 用户组和管理员开放。", status: 403)
+        case 403: throw AccountError("forbidden", "当前账户无法使用 Conpera Switch，请确认账户状态正常。", status: 403)
         case 404, 405, 501: throw AccountError("service_unavailable", "Conpera Switch 账户服务尚未开放，请稍后重试。", status: response.statusCode)
         case 429: throw AccountError("rate_limited", "请求过于频繁，请稍后重试。", status: 429)
         case 500...599: throw AccountError("service_unavailable", "Conpera 账户服务暂时不可用，请稍后重试。", status: response.statusCode)

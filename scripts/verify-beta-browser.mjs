@@ -10,6 +10,8 @@ import { chromium } from 'playwright';
 // Serves a frozen local build and substitutes only the native Promise bridge.
 // No cookies, credentials, user browser profile, CLI configuration, or production
 // endpoints are read. All non-fixture network requests are blocked and fail QA.
+const release = process.argv.includes('--release');
+const reportName = release ? 'release-browser-report.json' : 'beta-browser-report.json';
 const project = fileURLToPath(new URL('..', import.meta.url));
 await access(join(project, 'dist/index.html'));
 const scratch = await mkdtemp(join(tmpdir(), 'conpera-beta-browser-'));
@@ -44,7 +46,7 @@ try {
   await once(server, 'listening');
   const origin = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ channel: 'chrome', headless: true });
-  const context = await browser.newContext({ viewport: { width: 1000, height: 600 }, reducedMotion: 'reduce', userAgent: 'ConperaSwitchMac/0.2 ConperaSwitchBeta/0.2' });
+  const context = await browser.newContext({ viewport: { width: 1000, height: 600 }, reducedMotion: 'reduce', userAgent: (release ? 'ConperaSwitchMac/1.0.0 ConperaSwitchNative/1.0.0' : 'ConperaSwitchMac/0.2 ConperaSwitchBeta/0.2') });
   context.setDefaultTimeout(10_000);
   await context.route('**/*', async route => {
     if (new URL(route.request().url()).origin === origin) await route.continue();
@@ -168,7 +170,7 @@ try {
 
   await page.goto(origin);
   await welcome.waitFor();
-  check('Beta welcome renders without demo branding or guest fallback', await page.getByText('BETA', { exact: true }).isVisible() && !/DEMO|演示账户|无需密码|暂不登录/.test(await page.locator('body').innerText()));
+  check('Beta welcome renders without demo branding or guest fallback', await page.getByText(release ? '1.0' : 'BETA', { exact: true }).isVisible() && !/DEMO|演示账户|无需密码|暂不登录/.test(await page.locator('body').innerText()));
   await assertStorage('Startup persists no account credentials or demo preferences');
   await page.getByRole('button', { name: '登录 Conpera', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: '仅向 test 用户和 admin' }).waitFor();
@@ -330,9 +332,9 @@ try {
   check('No external requests or browser runtime exceptions occurred', blocked.length === 0 && errors.length === 0);
   await mkdir(output, { recursive: true });
   const report = { result: 'passed', scope: 'isolated Chromium + synthetic native Promise bridge; no production or real CLI configuration access', count: checks.length, checks, errors, blockedRequests: blocked, staticRequests: httpRequests.length };
-  await writeFile(join(output, 'beta-browser-report.json'), JSON.stringify(report, null, 2) + '\n');
-  console.log(`\n${checks.length} isolated beta browser checks passed.`);
-  console.log(`Report: ${join(output, 'beta-browser-report.json')}`);
+  await writeFile(join(output, reportName), JSON.stringify(report, null, 2) + '\n');
+  console.log(`\n${checks.length} isolated native browser checks passed.`);
+  console.log(`Report: ${join(output, reportName)}`);
 } finally {
   await browser?.close();
   if (server?.listening) await new Promise(resolve => server.close(resolve));

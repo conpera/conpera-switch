@@ -15,7 +15,7 @@ protocol AccountCredentialStore {
 }
 
 final class KeychainCredentialStore: AccountCredentialStore {
-    private let service = "ai.conpera.switch.beta"
+    private let service = Bundle.main.bundleIdentifier ?? "ai.conpera.switch"
     private let account = "desktop-session"
 
     private var query: [String: Any] {
