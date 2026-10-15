@@ -2,16 +2,16 @@
 
 Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看余额与本人密钥，并切换或恢复 Codex / Claude Code 的本机配置。
 
-## 安装 1.1
+## 安装 1.2
 
-下载 [Conpera Switch 1.1.0](https://github.com/conpera/conpera-switch/releases/tag/v1.1.0) 的 `Conpera-Switch-1.1.0-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
+下载 [Conpera Switch 1.2.0](https://github.com/conpera/conpera-switch/releases/tag/v1.2.0) 的 `Conpera-Switch-1.2.0-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
 
 - 适用于 Apple Silicon，要求 macOS 13 或更高版本。运行应用无需安装 Node.js。
 - 当前安装包使用 ad-hoc 签名，尚未完成 Developer ID 签名与 Apple 公证，macOS 可能阻止首次启动。
 - 1.0 使用独立应用标识 `ai.conpera.switch`，与旧 Beta / Demo 可共存；请在正式版重新登录。
 - 线上接口向所有状态正常的 Conpera 用户与管理员开放；禁用账户和未知角色无法授权。
 
-1.1.0 新增 Codex / Claude Code 常用设置表单与配置原文编辑。
+1.2.0 新增应用内检查更新、下载、签名校验和安装重启；保留 Codex / Claude Code 常用设置与配置原文编辑。
 
 ## 使用
 
@@ -26,6 +26,14 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 默认配置位置为 `~/.codex/config.toml`、`~/.claude/settings.json`；支持应用进程收到的绝对 `CODEX_HOME` / `CLAUDE_CONFIG_DIR`。Finder 启动不会自动继承终端环境变量。切换前保留原文件备份，检测到外部修改时停止覆盖。备份位于 `~/Library/Application Support/Conpera Switch/configuration`。退出登录会撤销桌面会话，保留已应用配置；离线也可从菜单恢复。
 
 应用不会安装 CLI。模型是否可用仍取决于账户渠道：此前真实测试中 Claude Code 调用成功，所选 Codex 特惠渠道返回上游错误。配置写入成功不代表模型运行已通过。详细历史证据见 [Beta 验证记录](docs/BETA.md)。
+
+## 检查更新
+
+点击欢迎页或主界面右上角的「检查更新」，也可从 macOS 菜单 **Conpera Switch → 检查更新…** 打开。无需登录 Conpera。发现新版后选择下载安装，再点击重启完成更新；已是最新版本、网络失败和校验失败都有明确提示。
+
+更新采用 [Sparkle 2.10.0](https://sparkle-project.org/documentation/)，从本仓库 GitHub Release 获取更新。默认仅手动检查，不自动下载或安装，不发送系统分析信息。更新信息与安装包都必须通过内置 Ed25519 公钥验证，安装包在解压前验证；签名错误不会安装。更新期间暂停账户与配置写入；请先保存或关闭配置编辑器。应用更新不修改 CLI 配置或账户凭据，但目前的 ad-hoc 签名可能使 macOS 在新版首次读取钥匙串时再次询问。
+
+**1.1.0 及更早版本需先手动安装 1.2.0**，之后可在应用内升级。若应用位于只读磁盘映像中，请先拖入 Applications。
 
 ## 配置细节
 
@@ -49,7 +57,7 @@ npm ci
 npm run package:mac
 ```
 
-输出在 `release/1.1.0/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。
+输出在 `release/1.2.0/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
 
 定向验证：
 
@@ -62,6 +70,14 @@ npm run test:settings-browser
 ```
 
 浏览器检查需要已安装 Google Chrome，使用隔离身份和模拟原生桥接，阻止外网访问。Swift 测试使用临时目录，不读取或修改用户真实 CLI 配置。设置界面检查通过真实 Swift 桥接写入隔离目录，拒绝账户网络请求和钥匙串访问。
+
+### 发布带签名的更新
+
+维护者执行 `npm run package:mac:release`，复用上述打包流程并生成带签名的 `appcast.xml`。更新私钥通过 `CONPERA_UPDATE_KEY_FILE` 指定，默认位置为本机 `~/Library/Application Support/Conpera Switch Release/ed25519.key`；必须为权限 0600 的文件，内含 base64 编码的 32 字节 Ed25519 私有种子，且公钥必须与构建配置匹配。私钥不进入源码、安装包或发布产物，请另行安全备份。当前未使用 Developer ID 签名，丢失更新私钥后不能用现有更新信任链发布新包。
+
+将 DMG、ZIP、`SHA256SUMS`、`release-manifest.json` 和 **`appcast.xml`** 一起上传到同一正式 GitHub Release，再将该 Release 设为 latest。应用固定读取 `https://github.com/conpera/conpera-switch/releases/latest/download/appcast.xml`；下载地址指向对应版本的 ZIP。不要发布缺少 appcast 的 latest 版本，也不要手动改动已签名的 XML。发布前核对版本与签名，发布后验证公开下载和应用内检查；需要回退更新渠道时将 latest 指回先前有效 Release，客户端不会因此自动降级。
+
+更新集成测试：`DEVELOPER_DIR=/Library/Developer/CommandLineTools node scripts/test-updater-fixture.mjs` 会创建独立应用、临时签名密钥和回环测试源。`output/updater/fixture.json` 记录测试路径；通过 `scenario.txt` 的 `offline`、`tampered-feed`、`tampered-archive`、`valid` 测试错误与完整升级。测试应用明确禁止账户、钥匙串及真实 CLI 配置访问。完成后退出测试应用，再停止服务。
 
 ## 本地 Demo
 

@@ -1,6 +1,7 @@
 import { ArrowRight, ArrowUpRight, Check, LoaderCircle } from 'lucide-react';
 import { ConperaMark } from './BrandMarks';
 import './welcome.css';
+import UpdateButton from './UpdateButton';
 
 type WelcomeScreenProps = {
   phase: 'ready' | 'connecting' | 'connected';
@@ -18,7 +19,7 @@ export default function WelcomeScreen({ phase, error, onLogin, onCancel, onConti
 
   return <div className="welcome-stage"><main className={`welcome-screen is-${phase}`} aria-busy={connecting} aria-labelledby="welcome-heading">
     <div className="welcome-grid">
-      <header className="welcome-topbar"><span className="welcome-brand"><ConperaMark size={28}/><span>CONPERA SWITCH</span></span><span className="welcome-edition">{edition}</span></header>
+      <header className="welcome-topbar"><span className="welcome-brand"><ConperaMark size={28}/><span>CONPERA SWITCH</span></span><UpdateButton version={edition} disabled={connecting || connected}/></header>
       <h1 id="welcome-heading"><span>欢迎使用</span><strong>conpera switch</strong></h1>
       <div className="welcome-actions">
         {error && <p className="welcome-error" role="alert">{error}</p>}

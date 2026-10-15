@@ -9,7 +9,7 @@ export class NativeError extends Error {
 }
 
 /** This bridge never accepts or returns an account token or a full model API key. */
-export async function nativeCall<T>(action: 'session' | 'login' | 'cancelLogin' | 'balance' | 'keys' | 'status' | 'apply' | 'changeChannel' | 'restore' | 'logout' | 'configurationDetails' | 'previewConfiguration' | 'saveConfiguration' | 'undoConfiguration', payload: Record<string, unknown> = {}): Promise<T> {
+export async function nativeCall<T>(action: 'session' | 'login' | 'cancelLogin' | 'balance' | 'keys' | 'status' | 'apply' | 'changeChannel' | 'restore' | 'logout' | 'configurationDetails' | 'previewConfiguration' | 'saveConfiguration' | 'undoConfiguration' | 'checkForUpdates', payload: Record<string, unknown> = {}): Promise<T> {
   const bridge = (window as NativeWindow).webkit?.messageHandlers?.switch;
   if (!isNative || !bridge) throw new NativeError(503, 'native_unavailable', '请使用 Conpera Switch 桌面客户端。');
   const reply = await bridge.postMessage({ action, payload });

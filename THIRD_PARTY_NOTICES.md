@@ -91,3 +91,11 @@ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+## Sparkle 2.10.0
+
+Copyright (c) Sparkle Project and its contributors.
+
+Sparkle provides the macOS update UI, Ed25519 verification, installation and relaunch. The complete upstream license, including bundled component notices, is included in the application as `Contents/Resources/Sparkle-LICENSE.txt`.
+
+Source: https://github.com/sparkle-project/Sparkle/tree/2.10.0

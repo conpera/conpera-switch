@@ -1,6 +1,6 @@
 {
   "name": "conpera-switch",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,7 +18,9 @@
     "build:mac:demo": "npm run build && node scripts/build-mac.mjs --demo",
     "package:mac": "npm run build:mac && node scripts/package-mac.mjs",
     "test:release-browser": "node scripts/verify-beta-browser.mjs --release",
-    "test:settings-browser": "node scripts/verify-configuration-browser.mjs"
+    "test:settings-browser": "node scripts/verify-configuration-browser.mjs",
+    "release:appcast": "node scripts/generate-appcast.mjs",
+    "package:mac:release": "npm run package:mac && npm run release:appcast"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
