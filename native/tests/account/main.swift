@@ -182,6 +182,22 @@ func run() async throws {
     await loginTransport.set { _ in (200, ["keys": [["id": "key-a", "tool": "codex", "name": "Test", "channel": "standard", "suffix": "abcd", "apiKey": "never-expose"]]]) }
     let keys = try await logged.keys()
     try check((keys["keys"] as! [[String: Any]])[0]["apiKey"] == nil, "key metadata cannot expose secrets")
+    let movedKey: [String: Any] = ["id": "key-a", "tool": "codex", "name": "Test", "channel": "available", "channelId": "group:28", "suffix": "abcd", "apiKey": "never-expose"]
+    await loginTransport.set { _ in (200, ["keys": [movedKey], "channels": [["id": "group:28", "name": "available", "tool": "codex", "secret": "never-expose"]]]) }
+    let catalog = try await logged.keys()
+    try check((catalog["channels"] as! [[String: Any]])[0]["secret"] == nil && (catalog["keys"] as! [[String: Any]])[0]["channelId"] as? String == "group:28", "catalog includes stable channel identifiers and projects public fields")
+    await loginTransport.set { request in
+        try check(request.httpMethod == "PATCH" && request.url!.path == "/api/switch/keys/channel", "channel change uses the scoped mutation endpoint")
+        let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: String]
+        try check(body == ["tool": "codex", "keyId": "key-a", "channelId": "group:28", "expectedChannelId": "group:1"], "channel change sends current key and expected channel without a secret")
+        return (200, ["key": movedKey])
+    }
+    let moved = try await logged.changeChannel(tool: "codex", keyId: "key-a", channelId: "group:28", expectedChannelId: "group:1")
+    try check((moved["key"] as! [String: Any])["apiKey"] == nil, "channel mutation response cannot expose key material")
+    await loginTransport.set { _ in (200, ["key": movedKey.merging(["id": "different-key"]) { _, value in value }]) }
+    try await expected("invalid_response") { _ = try await logged.changeChannel(tool: "codex", keyId: "key-a", channelId: "group:28", expectedChannelId: "group:1") }
+    await loginTransport.set { _ in (200, ["keys": [], "channels": [["id": "group:0", "name": "invalid", "tool": "codex"]]]) }
+    try await expected("invalid_response") { _ = try await logged.keys() }
     await loginTransport.set { _ in (200, ["tool": "codex", "keyId": "key-a", "apiKey": "synthetic-api-key", "baseUrl": "https://code.conpera.ai/v1"]) }
     let configuration = try await logged.configuration(tool: "codex", keyId: "key-a")
     try check(configuration["apiKey"] as? String == "synthetic-api-key", "native configuration gets authorized API credential")
@@ -285,6 +301,8 @@ func run() async throws {
         case "/api/switch/token": return (200, tokenPayload())
         case "/api/switch/session": return request.httpMethod == "DELETE" ? (204, [:]) : (200, baseSession)
         case "/api/switch/keys": return (200, ["keys": [["id": "key-a", "tool": "codex", "name": "Test", "channel": "standard", "suffix": "abcd"]]])
+        case "/api/switch/keys/channel":
+            return (200, ["key": ["id": "key-a", "tool": "codex", "name": "Test", "channel": "new channel", "channelId": "group:28", "suffix": "abcd", "apiKey": "runtime-secret-api-key"]])
         case "/api/switch/configuration":
             let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: String]
             return (200, ["tool": body["tool"]!, "keyId": body["keyId"]!, "apiKey": "runtime-secret-api-key",
@@ -322,6 +340,10 @@ func run() async throws {
     let codexWritten = try String(contentsOf: codexPath, encoding: .utf8)
     let claudeWritten = try String(contentsOf: claudePath, encoding: .utf8)
     try check(codexWritten.contains("runtime-secret-api-key") && claudeWritten.contains("runtime-secret-api-key"), "runtime writes authorized configuration only in fixture")
+    let movedRuntime = try await bridge("changeChannel", ["tool": "codex", "keyId": "key-a", "channelId": "group:28", "expectedChannelId": "group:1"])
+    let afterChannelCodex = try String(contentsOf: codexPath, encoding: .utf8)
+    let afterChannelClaude = try String(contentsOf: claudePath, encoding: .utf8)
+    try check(isOkay(movedRuntime) && afterChannelCodex == codexWritten && afterChannelClaude == claudeWritten, "changing a current key channel never rewrites either local CLI configuration")
     let runtimeStatus = try await bridge("status")
     try check(mode(runtimeStatus, "codex") == "conpera" && mode(runtimeStatus, "claude") == "conpera", "runtime reports real on-disk state")
     let restoreCodex = try await bridge("restore", ["tool": "codex"])
@@ -346,8 +368,8 @@ func run() async throws {
     let busyRuntime = SwitchRuntime(account: AccountClient(credentials: busyStore, transport: busyTransport, openBrowser: acceptingBrowser()), configuration: ConfigurationManager(home: runtimeHome))
     let pendingApply = Task { await busyRuntime.handle(action: "apply", payload: ["tool": "codex", "keyId": "key-a"]) }
     await applyStarted.wait()
-    for action in ["apply", "restore", "login", "logout", "cancelLogin"] {
-        let payload: [String: Any] = action == "apply" ? ["tool": "claude", "keyId": "key-a"] : action == "restore" ? ["tool": "codex"] : [:]
+    for action in ["apply", "restore", "login", "logout", "cancelLogin", "changeChannel"] {
+        let payload: [String: Any] = action == "apply" ? ["tool": "claude", "keyId": "key-a"] : action == "restore" ? ["tool": "codex"] : action == "changeChannel" ? ["tool": "codex", "keyId": "key-a", "channelId": "group:28", "expectedChannelId": "group:1"] : [:]
         let reply = await busyRuntime.handle(action: action, payload: payload)
         try check(errorCode(reply) == "operation_in_progress", "mutation lock rejects \(action) during apply")
     }

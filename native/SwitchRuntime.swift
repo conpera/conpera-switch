@@ -64,6 +64,13 @@ actor SwitchRuntime {
             defer { mutation = nil }
             try await account.logout()
             return [:]
+        case "changeChannel":
+            guard Set(payload.keys) == Set(["tool", "keyId", "channelId", "expectedChannelId"]),
+                  let tool = payload["tool"] as? String, let keyId = payload["keyId"] as? String,
+                  let channelId = payload["channelId"] as? String, let expectedChannelId = payload["expectedChannelId"] as? String else { throw Self.invalidRequest() }
+            try begin(action)
+            defer { mutation = nil }
+            return try await account.changeChannel(tool: tool, keyId: keyId, channelId: channelId, expectedChannelId: expectedChannelId)
         case "apply":
             guard Set(payload.keys) == Set(["tool", "keyId"]),
                   let tool = payload["tool"] as? String, ["codex", "claude"].contains(tool),

@@ -155,15 +155,50 @@ actor AccountClient {
     func keys() async throws -> [String: Any] {
         let payload = try await authenticated("GET", path: "/api/switch/keys")
         guard let keys = payload["keys"] as? [[String: Any]], keys.count <= 1000 else { throw Self.invalidResponse() }
-        let publicKeys = try keys.map { key -> [String: Any] in
-            guard let id = Self.identifier(key["id"]), let name = key["name"] as? String,
-                  let tool = key["tool"] as? String, ["codex", "claude"].contains(tool),
-                  let channel = key["channel"] as? String,
-                  let suffix = key["suffix"] as? String, suffix.utf8.count <= 8,
-                  name.utf8.count <= 256, channel.utf8.count <= 256 else { throw Self.invalidResponse() }
-            return ["id": id, "name": name, "tool": tool, "channel": channel, "suffix": suffix]
+        let publicKeys = try keys.map(Self.publicKey)
+        var result: [String: Any] = ["keys": publicKeys]
+        if let raw = payload["channels"] {
+            guard let channels = raw as? [[String: Any]], channels.count <= 1000 else { throw Self.invalidResponse() }
+            result["channels"] = try channels.map { channel -> [String: Any] in
+                guard let id = Self.channelIdentifier(channel["id"]), let name = channel["name"] as? String,
+                      !name.isEmpty, name.utf8.count <= 256,
+                      let tool = channel["tool"] as? String, ["codex", "claude"].contains(tool) else { throw Self.invalidResponse() }
+                return ["id": id, "name": name, "tool": tool]
+            }
         }
-        return ["keys": publicKeys]
+        return result
+    }
+
+    private static func channelIdentifier(_ value: Any?) -> String? {
+        guard let text = value as? String, text.range(of: "^group:[1-9][0-9]{0,15}$", options: .regularExpression) != nil else { return nil }
+        return text
+    }
+    private static func publicKey(_ key: [String: Any]) throws -> [String: Any] {
+        guard let id = identifier(key["id"]), let name = key["name"] as? String,
+              let tool = key["tool"] as? String, ["codex", "claude"].contains(tool),
+              let channel = key["channel"] as? String,
+              let suffix = key["suffix"] as? String, suffix.utf8.count <= 8,
+              name.utf8.count <= 256, channel.utf8.count <= 256 else { throw invalidResponse() }
+        var result: [String: Any] = ["id": id, "name": name, "tool": tool, "channel": channel, "suffix": suffix]
+        if let value = key["channelId"] {
+            guard let channelId = channelIdentifier(value) else { throw invalidResponse() }
+            result["channelId"] = channelId
+        }
+        return result
+    }
+
+    func changeChannel(tool: String, keyId: String, channelId: String, expectedChannelId: String) async throws -> [String: Any] {
+        guard ["codex", "claude"].contains(tool), Self.identifier(keyId) != nil,
+              Self.channelIdentifier(channelId) != nil, Self.channelIdentifier(expectedChannelId) != nil else {
+            throw AccountError("invalid_request", "请选择有效的密钥和渠道。")
+        }
+        let payload = try await authenticated("PATCH", path: "/api/switch/keys/channel", body:
+            ["tool": tool, "keyId": keyId, "channelId": channelId, "expectedChannelId": expectedChannelId])
+        guard let raw = payload["key"] as? [String: Any] else { throw Self.invalidResponse() }
+        let key = try Self.publicKey(raw)
+        guard key["id"] as? String == keyId, key["tool"] as? String == tool,
+              key["channelId"] as? String == channelId else { throw Self.invalidResponse() }
+        return ["key": key]
     }
 
     /// Native-only. Do not return this dictionary through the web view bridge.
