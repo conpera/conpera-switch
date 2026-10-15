@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowUpRight, ArrowRight, ArrowLeftRight, Check, ChevronRight, CircleHelp, Coins, ExternalLink, KeyRound, LoaderCircle, LogOut, Plus, RefreshCw, RotateCcw, SquareTerminal, X } from 'lucide-react';
 import ConperaSelect from './ConperaSelect';
+import ChannelSelect, { isAdvancedChannel } from './ChannelSelect';
 import { ClaudeMark, ConperaMark } from './BrandMarks';
 import WelcomeScreen from './WelcomeScreen';
 import { AccountMenu, AnimatedBalance, Presence, Toast, cardHover, reducedMotion } from './Motion';
@@ -186,7 +187,10 @@ function Dashboard() {
   function adoptStatus(status: NativeStatus, available?: DemoKey[]) {
     setTools(previous => Object.fromEntries((['codex', 'claude'] as Tool[]).map(tool => {
       const current = status.tools[tool];
-      const keyId = current.keyId || (current.mode === 'original' && available ? available.find(k => k.tool === tool)?.id : previous[tool].keyId) || '';
+      const candidates = available?.filter(k => k.tool === tool);
+      const keyId = current.keyId || (current.mode === 'original' && candidates
+        ? candidates.find(k => k.id === previous[tool].keyId)?.id || candidates.find(k => !isAdvancedChannel(k.channel))?.id || candidates[0]?.id
+        : previous[tool].keyId) || '';
       return [tool, { mode: current.mode, keyId }];
     })) as Record<Tool, ToolState>);
   }
@@ -323,6 +327,7 @@ function Dashboard() {
     setLastAction(action); notify(`${action} · 演示`); setBusy(null); switchLocked.current = false;
   }
   async function selectKey(tool: Tool, keyId: string) {
+    if (tools[tool].keyId === keyId) return;
     if (isNative) {
       if (switchLocked.current || tools[tool].mode === 'unavailable' || !keys.some(k => k.tool === tool && k.id === keyId)) return;
       if (tools[tool].mode === 'original') { setTools(previous => ({ ...previous, [tool]: { ...previous[tool], keyId } })); return; }
@@ -376,8 +381,20 @@ function Dashboard() {
               <button aria-label="原机配置" aria-pressed={state.mode === 'original'} disabled={!!busy} onClick={() => state.mode === 'original' || void switchMode(tool, 'original')} className={state.mode === 'original' ? 'selected' : ''}>原机{state.mode === 'original' && <Check size={13}/>}</button>
               <button aria-label="Conpera" aria-pressed={active} disabled={!!busy || (isNative && (!session || !selected.id || state.mode === 'unavailable'))} onClick={() => active || void switchMode(tool, 'conpera')} className={active ? 'selected conpera-selected' : ''}>Conpera{active && <Check size={13}/>}</button>
             </div>
-            <ConperaSelect className="channel-select" label={`${toolNames[tool]} 渠道与密钥`} value={selected.id} onChange={keyId => void selectKey(tool, keyId)} disabled={!!busy || (isNative && (!session || state.mode === 'unavailable'))} options={keys.filter(k => k.tool === tool).map(k => ({ value: k.id, label: `${k.channel} / ${k.name}` }))}/>
-            <button className="key-edit" onClick={() => { setKeyTool(tool); setKeyError(''); }} aria-label={`管理 ${toolNames[tool]} 密钥`} title="管理密钥"><KeyRound size={16}/><code key={selected.id}>···· {selected.suffix}</code><ChevronRight size={17}/></button>
+            <ChannelSelect label={toolNames[tool]} value={selected.channel} channels={keys.filter(k => k.tool === tool).map(k => k.channel)}
+              disabled={!!busy || (isNative && (!session || state.mode === 'unavailable'))}
+              onChange={channel => {
+                const key = keys.find(k => k.tool === tool && k.channel === channel && k.id === selected.id)
+                  || keys.find(k => k.tool === tool && k.channel === channel);
+                if (key) void selectKey(tool, key.id);
+              }}/>
+            <div className="key-selection"><KeyRound size={16} aria-hidden="true"/>
+              <ConperaSelect className="key-select" label={`${toolNames[tool]} 密钥`} value={selected.id}
+                disabled={!!busy || (isNative && (!session || state.mode === 'unavailable'))}
+                options={keys.filter(k => k.tool === tool && k.channel === selected.channel).map(k => ({ value: k.id, label: `${k.name} · ${k.suffix}` }))}
+                onChange={keyId => void selectKey(tool, keyId)}/>
+              <button className="icon-button key-manage" onClick={() => { setKeyTool(tool); setKeyError(''); }} aria-label={`管理 ${toolNames[tool]} 密钥`} title="查看密钥详情"><ChevronRight size={17}/></button>
+            </div>
           </article>;
         })}
       </section>
@@ -411,7 +428,7 @@ function Dashboard() {
       {!isNative && <p className="modal-footnote">演示账户 · 无需密码</p>}
     </Modal></Presence>
     <Presence visible={!!keyTool}>{keyTool && <Modal title={`${toolNames[keyTool]} · 密钥`} onClose={() => setKeyTool(null)} wide>
-      <div className="key-list">{keys.filter(k => k.tool === keyTool).map(k => <button className={`key-item ${tools[keyTool].keyId === k.id ? 'chosen' : ''}`} key={k.id} onClick={() => selectKey(keyTool, k.id)}><KeyRound size={18}/><span><strong>{k.name}</strong><small>{k.channel} <span>· ···· {k.suffix}</span></small></span>{tools[keyTool].keyId === k.id ? <Check size={17}/> : <ArrowRight size={17}/>}</button>)}</div>
+      <div className="key-list">{keys.filter(k => k.tool === keyTool && (!keys.some(item => item.id === tools[keyTool].keyId) || k.channel === keys.find(item => item.id === tools[keyTool].keyId)?.channel)).map(k => <button className={`key-item ${tools[keyTool].keyId === k.id ? 'chosen' : ''}`} key={k.id} onClick={() => selectKey(keyTool, k.id)}><KeyRound size={18}/><span><strong>{k.name}</strong><small>{k.channel} <span>· ···· {k.suffix}</span></small></span>{tools[keyTool].keyId === k.id ? <Check size={17}/> : <ArrowRight size={17}/>}</button>)}</div>
       {!isNative && <form className="add-key" onSubmit={e => { e.preventDefault(); addKey(); }}><div className="add-key-fields"><label>名称<input value={newName} maxLength={24} onChange={e => { setNewName(e.target.value); setKeyError(''); }} placeholder="新密钥"/></label><div className="field"><span>渠道</span><ConperaSelect className="form-select" label="新密钥渠道" value={newChannel} onChange={setNewChannel} options={['标准渠道', '优先渠道'].map(channel => ({ value: channel, label: channel }))}/></div></div>{keyError && <p role="alert" className="error-text">{keyError}</p>}<button type="submit" className="button block">添加并选择<Plus size={14}/></button></form>}
       <p className="modal-footnote">{isNative ? '密钥从当前账户同步，仅显示尾号；可在 Conpera 网站管理。' : '仅演示，不接收真实 API Key。'}</p>
     </Modal>}</Presence>

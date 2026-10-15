@@ -50,6 +50,14 @@ h1, h2, h3, p { margin: 0; }
 .switch-track button.conpera-selected { background: #202020; color: #fff; }
 .switch-track button.conpera-selected:hover:not(:disabled) { background: #333; color: #fff; }
 .channel-select { margin-top: 14px; font-size: 11px; }
+.advanced-toggle { display: flex; align-items: center; gap: 7px; padding: 3px 0; background: transparent; color: #929292; font-size: 10px; }
+.advanced-toggle:hover:not(:disabled) { color: #222; }
+.advanced-channel-options { margin-top: 8px; padding: 10px; background: #f7f7f7; font-size: 11px; }
+.advanced-channel-options .eyebrow { font-size: 9px; letter-spacing: .4px; }
+.key-selection { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: auto; padding-top: 24px; color: #a5a5a5; }
+.key-selection > svg { flex: 0 0 auto; }
+.key-select { flex: 1; font-size: 11px; }
+.key-manage { width: 20px; }
 .key-edit { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 24px; margin-top: auto; padding: 24px 0 0; background: transparent; color: #a5a5a5; text-align: left; }
 .key-edit code { font: 10px var(--mono); letter-spacing: .5px; color: #7c7c7c; }
 .key-edit>svg:last-child { margin-left: auto; }

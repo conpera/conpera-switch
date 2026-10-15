@@ -8,7 +8,7 @@ type WelcomeScreenProps = {
   onLogin: () => void;
   onCancel: () => void;
   onContinueHere?: () => void;
-  edition?: 'DEMO' | 'BETA' | '1.0';
+  edition?: string;
 };
 
 export default function WelcomeScreen({ phase, error, onLogin, onCancel, onContinueHere, edition = 'DEMO' }: WelcomeScreenProps) {

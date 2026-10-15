@@ -1,6 +1,6 @@
 export const isBeta = navigator.userAgent.includes('ConperaSwitchBeta/');
 export const isNative = isBeta || navigator.userAgent.includes('ConperaSwitchNative/');
-export const edition = isNative ? (isBeta ? 'BETA' : '1.0') : 'DEMO';
+export const edition = isNative ? (isBeta ? 'BETA' : navigator.userAgent.match(/ConperaSwitchNative\/([\d.]+)/)?.[1] || '1.0') : 'DEMO';
 
 type NativeReply<T> = { ok: true; data: T } | { ok: false; error: { status: number; code: string; message: string } };
 type NativeWindow = Window & { webkit?: { messageHandlers?: { switch?: { postMessage: (request: { action: string; payload: Record<string, unknown> }) => Promise<NativeReply<unknown>> } } } };

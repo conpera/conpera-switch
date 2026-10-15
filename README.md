@@ -4,7 +4,7 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 ## 安装 1.0
 
-下载 [Conpera Switch 1.0.0](https://github.com/conpera/conpera-switch/releases/tag/v1.0.0) 的 `Conpera-Switch-1.0.0-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
+下载 [Conpera Switch 1.0.1](https://github.com/conpera/conpera-switch/releases/tag/v1.0.1) 的 `Conpera-Switch-1.0.1-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
 
 - 适用于 Apple Silicon，要求 macOS 13 或更高版本。运行应用无需安装 Node.js。
 - 当前安装包使用 ad-hoc 签名，尚未完成 Developer ID 签名与 Apple 公证，macOS 可能阻止首次启动。
@@ -14,8 +14,10 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 ## 使用
 
 1. 打开应用，点击登录，在系统浏览器完成 Conpera 登录与授权。
-2. 为 Codex 或 Claude Code 选择本人账户下可用的渠道与密钥，点击 **Conpera** 应用配置。
+2. 为 Codex 或 Claude Code 选择渠道，再从下方选择该渠道的密钥，点击 **Conpera** 应用配置。
 3. 重启对应 CLI，让它读取新配置。点击 **原机** 或使用应用菜单可恢复原配置。
+
+渠道按名称合并显示；名称标有内部、测试、实验等字样的渠道收在「高级选项」中。已应用的内部渠道仍会显示，升级不会自动切换配置。
 
 余额保持服务端返回的币种，不进行汇率转换。密钥管理在 Conpera 网站完成，应用只显示密钥尾号。账户令牌保存在系统钥匙串，完整密钥只在原生层用于配置，不进入网页存储或界面。
 
@@ -32,7 +34,7 @@ npm ci
 npm run package:mac
 ```
 
-输出在 `release/1.0.0/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。
+输出在 `release/1.0.1/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。
 
 定向验证：
 

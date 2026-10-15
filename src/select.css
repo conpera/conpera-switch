@@ -99,9 +99,11 @@
   left: 0;
   z-index: 30;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   gap: 2px;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   padding: 4px;
   border: 0;
@@ -132,6 +134,7 @@
 .conpera-select .conpera-select-option {
   display: flex;
   width: 100%;
+  min-width: 0;
   min-height: 34px;
   align-items: center;
   justify-content: space-between;
@@ -174,6 +177,8 @@
 }
 
 .conpera-select-option > span {
+  white-space: normal;
+  overflow-wrap: anywhere;
   transition: transform 200ms cubic-bezier(.22, 1, .36, 1);
 }
 
