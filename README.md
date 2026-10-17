@@ -4,14 +4,14 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 ## 安装 1.2
 
-下载 [Conpera Switch 1.2.1](https://github.com/conpera/conpera-switch/releases/tag/v1.2.1) 的 `Conpera-Switch-1.2.1-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
+下载 [Conpera Switch 1.2.2](https://github.com/conpera/conpera-switch/releases/tag/v1.2.2) 的 `Conpera-Switch-1.2.2-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
 
 - 适用于 Apple Silicon，要求 macOS 13 或更高版本。运行应用无需安装 Node.js。
 - 当前安装包使用 ad-hoc 签名，尚未完成 Developer ID 签名与 Apple 公证，macOS 可能阻止首次启动。
 - 1.0 使用独立应用标识 `ai.conpera.switch`，与旧 Beta / Demo 可共存；请在正式版重新登录。
 - 线上接口向所有状态正常的 Conpera 用户与管理员开放；禁用账户和未知角色无法授权。
 
-1.2.1 将 Codex 常用设置精简为模型、思考强度和上下文窗口；其他设置仍可在配置原文中编辑。支持应用内检查更新、下载、签名校验和安装重启。
+1.2.2 修复合法的 TOML 多行数组阻止 Codex 配置读取、编辑和切换的问题，保留数组顺序、注释及换行格式。语法错误单独提示行号，不回显敏感值。1.2.0 及以上版本可在应用内检查更新并升级。
 
 ## 使用
 
@@ -57,7 +57,7 @@ npm ci
 npm run package:mac
 ```
 
-输出在 `release/1.2.1/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
+输出在 `release/1.2.2/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
 
 定向验证：
 
