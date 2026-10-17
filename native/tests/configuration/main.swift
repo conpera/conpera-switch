@@ -62,6 +62,104 @@ var count = 0
 }
 
 do {
+    // Issue #9: parse complete values, preserving unrelated source verbatim.
+    let multilineMCP = #"""
+    [mcp_servers.example]
+    command = "example-mcp"
+    enabled_tools = [
+      "search", # a comment containing ] and "
+
+      "read",
+    ] # keep this comment
+    args = [
+      "hash#and]bracket", 'literal#]', "escaped\"quote\\slash",
+    ]
+    empty = [ # empty, with comments and a blank line
+
+    ]
+    nested = [
+      [1,
+       2,],
+      { flags = [
+          true, false,
+      ], label = "nested" },
+    ]
+    """#
+    for (index, newline) in ["\n", "\r\n", "\r\n"].enumerated() {
+        func styled(_ text: String) -> String {
+            let result = text.replacingOccurrences(of: "\n", with: newline)
+            return index == 2 ? result.replacingOccurrences(of: "command = \"example-mcp\"\r\n", with: "command = \"example-mcp\"\n") : result
+        }
+        let mcp = styled(multilineMCP)
+        let source = "model = \"example-model\"" + newline + newline + mcp + newline
+        let bytes = Data(source.utf8)
+        let (home, manager) = try fixture("multiline-\(index)")
+        try write(target(home, "codex"), bytes, mode: 0o640)
+        let read = try manager.configurationDetails(tool: "codex")
+        try check(read["content"] as? String == source, "multiline arrays read without changing bytes \(index)")
+        let same = try manager.saveConfiguration(tool: "codex", revision: read["revision"] as! String, content: source)
+        try check(same["canUndo"] as? Bool == false && (try Data(contentsOf: target(home, "codex"))) == bytes && (try mode(target(home, "codex"))) == 0o640, "unchanged multiline save is a no-op \(index)")
+        let draft = try ConfigurationDocument.updating(source, tool: "codex", updates: ["model": "edited-model"])
+        let saved = try manager.saveConfiguration(tool: "codex", revision: read["revision"] as! String, content: draft)
+        try check(try text(target(home, "codex")).contains(mcp + newline), "form save preserves multiline MCP bytes \(index)")
+        _ = try manager.undoConfiguration(tool: "codex", revision: saved["revision"] as! String)
+        try check(try Data(contentsOf: target(home, "codex")) == bytes && mode(target(home, "codex")) == 0o640, "multiline undo restores exact bytes and permissions \(index)")
+        _ = try manager.apply(tool: "codex", keyId: "fixture", apiKey: syntheticKey, baseURL: endpoint)
+        _ = try manager.apply(tool: "codex", keyId: "fixture-2", apiKey: syntheticKey, baseURL: endpoint)
+        try check(try text(target(home, "codex")).contains(mcp + newline), "repeated provider switches preserve multiline MCP bytes \(index)")
+        let active = try manager.configurationDetails(tool: "codex")
+        let activeDraft = (active["content"] as! String).replacingOccurrences(of: "\"search\"", with: "\"find\"")
+        _ = try manager.saveConfiguration(tool: "codex", revision: active["revision"] as! String, content: activeDraft)
+        try check(try text(target(home, "codex")).contains(mcp.replacingOccurrences(of: "\"search\"", with: "\"find\"")), "active raw array edit saves successfully \(index)")
+        _ = try ConfigurationManager(home: home).restore(tool: "codex")
+        try check(try Data(contentsOf: target(home, "codex")) == bytes && mode(target(home, "codex")) == 0o640, "restore after active edit recovers original multiline bytes \(index)")
+        let stale = try manager.configurationDetails(tool: "codex")
+        _ = try manager.apply(tool: "codex", keyId: "fixture", apiKey: syntheticKey, baseURL: endpoint)
+        let external = Data((source + "# external edit" + newline).utf8)
+        try write(target(home, "codex"), external)
+        try expect("configuration_changed") { _ = try manager.saveConfiguration(tool: "codex", revision: stale["revision"] as! String, content: draft) }
+        try expect("configuration_changed") { _ = try manager.apply(tool: "codex", keyId: "fixture", apiKey: syntheticKey, baseURL: endpoint) }
+        try expect("configuration_changed") { _ = try manager.restore(tool: "codex") }
+        try check(try Data(contentsOf: target(home, "codex")) == external, "multiline external changes survive save/apply/restore conflicts \(index)")
+
+        let privateSource = styled("args = [\n  \"--api-key\",\n  \"" + syntheticKey + "\", # hidden comment\n] # hidden trailing comment\noptions = [\n  { nested = { token = \"hidden-nested\" } },\n]\nrefresh_tokens = [\n  \"hidden-refresh\",\n]\n" + multilineMCP)
+        let hidden = try ConfigurationDocument.redact(privateSource, tool: "codex").content
+        try check(!hidden.contains(syntheticKey) && !hidden.contains("hidden-") && hidden.contains(mcp), "whole sensitive multiline containers are hidden, ordinary arrays remain editable \(index)")
+        try check(try ConfigurationDocument.restore(hidden, original: privateSource, tool: "codex", active: false) == privateSource, "private multiline values and missing final newline round-trip exactly \(index)")
+        try expect("protected_settings") { _ = try ConfigurationDocument.restore(hidden.replacingOccurrences(of: "__CONPERA_PRIVATE_0__", with: "changed"), original: privateSource, tool: "codex", active: false) }
+    }
+
+    let managedArrays = "model = [\n  \"old\",\n]\nmodel_provider = [\n  \"old\",\n]\n[model_providers.conpera_switch]\nname = [\n  \"old\",\n]\n"
+    let rewritten = try CodexConfigurationEditor.edit(Data(managedArrays.utf8), key: syntheticKey, endpoint: endpoint, model: nil)
+    let rewrittenDoc = try CodexConfigurationEditor.parse(rewritten)
+    try check(rewrittenDoc.entries.first { $0.path == ["model_provider"] }?.value == "\"conpera_switch\"" && rewrittenDoc.entries.first { $0.path == ["model_providers", "conpera_switch", "name"] }?.value == "\"Conpera\"", "provider replacement consumes complete multiline assignments")
+    let updatedRoot = try ConfigurationDocument.updating(managedArrays, tool: "codex", updates: ["model": "new-model"])
+    try check(try ConfigurationDocument.fields(updatedRoot, tool: "codex")["model"] == "new-model", "form replacement consumes a complete multiline root assignment")
+
+    let malformed = [
+        "args = [\n  \"x\",\n", "args = [\n  \"x\"\n  \"y\"\n]\n",
+        "args = [\n,\n]\n", "args = [\n  \"x\",,\n]\n", "args = [\n  [1, 2],\n}\n",
+        "args = [\n  \"bad\\q\",\n]\n", "args = [\n  \"unclosed\n]\n", "args = [\n]\nstray\n",
+        "args = [\n]\nargs = []\n", "options = {\n  x = 1\n}\n",
+        "args = [\n  { x = 1, },\n]\n", "args = [\n  # bad\u{7}comment\n]\n",
+        "args = [\r  1\r]\n", "model_provider = \"a\"\nmodel_provider = \"b\"\n", "broken = nope\n",
+    ]
+    for (index, source) in malformed.enumerated() {
+        let (home, manager) = try fixture("malformed-array-\(index)")
+        let bytes = Data(source.utf8)
+        try write(target(home, "codex"), bytes)
+        try expect("invalid_toml") { _ = try manager.configurationDetails(tool: "codex") }
+        try expect("invalid_toml") { _ = try manager.apply(tool: "codex", keyId: "fixture", apiKey: syntheticKey, baseURL: endpoint) }
+        try check(try Data(contentsOf: target(home, "codex")) == bytes && fm.contentsOfDirectory(atPath: state(home).path).allSatisfy { $0 == ".lock" }, "malformed input leaves bytes intact and creates no backup/journal/undo \(index)")
+    }
+    for newline in ["\n", "\r\n"] {
+        let invalidSource = ["# fixture", "args = [", "  \"" + syntheticKey + "\"", "  \"missing comma\"", "]"].joined(separator: newline)
+        do { _ = try CodexConfigurationEditor.parse(Data(invalidSource.utf8)); throw NSError(domain: "Expected invalid TOML", code: 1) }
+        catch let failure as ConfigurationManager.Failure {
+            try check(failure.code == "invalid_toml" && failure.message.contains("第 4 行") && !failure.message.contains(syntheticKey), "syntax diagnostic identifies physical line without exposing values")
+        }
+    }
+
     let containers = "args = [\"--flag\", \"safe-value\"]\noptions = { enabled = true, count = 2 }\nprivate_options = { nested = { api_key = \"hidden-inline\" } }\nrefresh_tokens = [\"hidden-refresh\"]\nmodel_auto_compact_token_limit = 1000\n"
     let redactedContainers = try ConfigurationDocument.redact(containers, tool: "codex").content
     try check(redactedContainers.contains("args = [\"--flag\", \"safe-value\"]") && redactedContainers.contains("options = { enabled = true, count = 2 }"), "ordinary TOML arrays and inline tables remain editable")
@@ -89,7 +187,7 @@ do {
     try check(try Data(contentsOf: target(editorHome, "codex")) == editorSource && mode(target(editorHome, "codex")) == 0o640 && undoEditor["canUndo"] as? Bool == false, "undo survives restart and restores exact original bytes and permissions")
     let currentEditor = try editor.configurationDetails(tool: "codex")
     try expect("protected_settings") { _ = try editor.saveConfiguration(tool: "codex", revision: currentEditor["revision"] as! String, content: editorText.replacingOccurrences(of: "__CONPERA_PRIVATE_0__", with: "modified-secret")) }
-    try expect("unsupported_configuration") { _ = try editor.saveConfiguration(tool: "codex", revision: currentEditor["revision"] as! String, content: "model = \"unterminated") }
+    try expect("invalid_toml") { _ = try editor.saveConfiguration(tool: "codex", revision: currentEditor["revision"] as! String, content: "model = \"unterminated") }
     try expect("invalid_settings") { _ = try ConfigurationDocument.updating(editorText, tool: "codex", updates: ["model_context_window": "12.5"]) }
     try expect("invalid_settings") { _ = try ConfigurationDocument.updating(editorText, tool: "codex", updates: ["model_auto_compact_token_limit": "250000"]) }
     try expect("invalid_settings") { _ = try ConfigurationDocument.updating(editorText, tool: "codex", updates: ["api_key": "new-secret"]) }
@@ -192,7 +290,7 @@ do {
     try expect("configuration_changed") { _ = try conflict.apply(tool: "claude", keyId: "x", apiKey: syntheticKey, baseURL: "https://code.conpera.ai") }
     try check(try Data(contentsOf: target(conflictHome, "claude")) == external, "external edits preserved on both failures")
 
-    for (index, unsupported) in ["model = \"\"\"multiline\nvalue\"\"\"\n", "args = [\n \"x\"\n]\n", "[[array]]\nx = 1\n", "model_provider = \"a\"\nmodel_provider = \"b\"\n", "[model_providers.conpera_switch.auth]\ncommand = \"other\"\n", "[model_provider]\nx = 1\n", "broken = nope\n", "[model_providers.conpera_switch]\nhttp_headers = {}\n"].enumerated() {
+    for (index, unsupported) in ["model = \"\"\"multiline\nvalue\"\"\"\n", "[[array]]\nx = 1\n", "[model_providers.conpera_switch.auth]\ncommand = \"other\"\n", "[model_provider]\nx = 1\n", "[model_providers.conpera_switch]\nhttp_headers = {}\n"].enumerated() {
         let (invalidHome, invalid) = try fixture("invalid-\(index)")
         let bytes = Data(unsupported.utf8)
         try write(target(invalidHome, "codex"), bytes)

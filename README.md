@@ -44,7 +44,7 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 - 保存前校验格式、检查文件是否在外部变化；保存后读回核验。可以撤销上次保存，恢复之前的文件内容和权限。编辑期间的未保存修改会在关闭或重新读取前提醒。
 - 设置仅写入本机用户配置；保存后重启对应客户端。项目配置、环境变量、管理员策略和模型能力可能影响实际生效。应用未代替 CLI 验证每种模型与参数组合。
 
-支持 UTF-8 配置，编辑上限为 512 KiB。Codex 使用保守的 TOML 编辑器，目前支持标量、单行数组、内联表及普通表；多行值和数组表会明确拒绝，保留原文件。Claude Code 原文保存时会规范化 JSON 缩进和键顺序。
+支持 UTF-8 配置，编辑上限为 512 KiB。Codex 使用保守的 TOML 编辑器，支持标量、单行及多行数组、内联表和普通表。数组可包含注释、空行、尾随逗号和嵌套数组；无关配置保留顺序、注释及 LF / CRLF 格式。多行字符串和数组表仍会提示暂不支持；语法错误单独提示行号，不回显配置值，原文件保持不变。Claude Code 原文保存时会规范化 JSON 缩进和键顺序。
 
 参数依据 [Codex 配置参考](https://developers.openai.com/codex/config-reference)、[Claude Code 设置参考](https://code.claude.com/docs/en/settings-reference)和[环境变量参考](https://code.claude.com/docs/en/env-vars)。
 
