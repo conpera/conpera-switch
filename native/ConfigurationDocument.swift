@@ -71,7 +71,9 @@ enum ConfigurationDocument {
                 // protected as a unit; ordinary arrays/tables stay editable.
                 let privateContainer = try (entry.value.hasPrefix("{") || entry.value.hasPrefix("[")) && (CodexConfigurationEditor.containsSensitiveValues(entry.value, matching: sensitive))
                 if entry.path.contains(where: sensitive) || privateContainer {
-                    let placeholder = hide(entry.path, entry.value)
+                    // Keep trailing comments native as well, and restore them
+                    // with the complete value instead of dropping their bytes.
+                    let placeholder = hide(entry.path, entry.value + entry.suffix)
                     replacements[entry.line] = entry.prefix + CodexConfigurationEditor.quote(placeholder)
                 }
             }

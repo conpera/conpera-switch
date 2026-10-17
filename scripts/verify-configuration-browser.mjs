@@ -17,7 +17,21 @@ const output = join(project, 'output', 'configuration-editor');
 const { version } = JSON.parse(await readFile(join(project, 'package.json'), 'utf8'));
 const codexPath = join(root, '.codex/config.toml');
 const claudePath = join(root, '.claude/settings.json');
-const codexOriginal = '# isolated fixture\nmodel = "fixture-model"\nmodel_reasoning_effort = "high"\nmodel_auto_compact_token_limit = 150000\nmodel_verbosity = "high"\n[model_providers.fixture]\nbase_url = "https://fixture.invalid/v1"\nexperimental_bearer_token = "synthetic-settings-secret"\n';
+const multilineMCP = `[mcp_servers.example]
+command = "example-mcp"
+enabled_tools = [
+  "search", # keep ] and # inside comments
+
+  "read",
+]
+args = [
+  "literal#]",
+]
+private_options = [
+  { api_key = "synthetic-settings-secret" },
+]
+`;
+const codexOriginal = '# isolated fixture\nmodel = "fixture-model"\nmodel_reasoning_effort = "high"\nmodel_auto_compact_token_limit = 150000\nmodel_verbosity = "high"\n[model_providers.fixture]\nbase_url = "https://fixture.invalid/v1"\nexperimental_bearer_token = "synthetic-settings-secret"\n' + multilineMCP;
 const claudeOriginal = '{"model":"fixture-claude","env":{"ANTHROPIC_AUTH_TOKEN":"synthetic-claude-secret","UNRELATED":"keep"},"permissions":{"allow":["Read"]}}';
 let bridge, server, browser;
 const pending = [];
@@ -84,10 +98,12 @@ try {
   await raw.waitFor();
   const draft = await raw.inputValue();
   check('Form edits synchronize into TOML while credentials remain hidden', draft.includes('model = "custom-model"') && draft.includes('model_reasoning_effort = "xhigh"') && draft.includes('__CONPERA_PRIVATE_') && !draft.includes('synthetic-settings-secret'));
-  await raw.fill('model = "unterminated');
+  check('Editor reads multiline MCP arrays and hides complete private containers', draft.includes('enabled_tools = [\n  "search", # keep ] and # inside comments\n\n  "read",\n]') && draft.includes('private_options = "__CONPERA_PRIVATE_'));
+  await raw.fill('args = [\n  "missing comma"\n  "next value"\n]');
   await dialog.getByRole('button', { name: '保存配置', exact: true }).click();
   await dialog.getByRole('alert').filter({ hasText: 'TOML' }).waitFor();
   check('Malformed raw TOML does not alter the file', await readFile(codexPath, 'utf8') === codexOriginal);
+  check('Malformed arrays display a safe physical line number', (await dialog.getByRole('alert').innerText()).includes('第 3 行'));
   await raw.fill(draft.replace('"custom-model"', '"raw-custom-model"'));
   await dialog.getByRole('button', { name: '常用设置', exact: true }).click();
   await dialog.getByLabel('模型', { exact: true }).waitFor();
@@ -96,6 +112,7 @@ try {
   await dialog.getByRole('status').filter({ hasText: '已保存并核验' }).waitFor();
   const saved = await readFile(codexPath, 'utf8');
   check('Saving from the UI retains credentials and settings outside the common form', saved.includes('raw-custom-model') && saved.includes('synthetic-settings-secret') && !saved.includes('__CONPERA_PRIVATE_') && saved.includes('model_auto_compact_token_limit = 150000') && saved.includes('model_verbosity = "high"'));
+  check('UI save preserves MCP arrays, comments and private multiline values byte-for-byte', saved.endsWith(multilineMCP));
   await dialog.getByRole('button', { name: '配置原文 TOML', exact: true }).click(); await raw.waitFor();
   await page.screenshot({ path: join(output, 'codex-raw.png') });
   await dialog.getByRole('button', { name: '撤销上次保存', exact: true }).click();

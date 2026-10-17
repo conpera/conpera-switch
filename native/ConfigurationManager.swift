@@ -461,71 +461,80 @@ final class ConfigurationManager {
 /// A deliberately restricted, string-aware TOML editor. Unsupported constructs
 /// fail before journaling. Unrelated source lines are preserved byte-for-byte.
 enum CodexConfigurationEditor {
-    struct Entry { let line: Int; let path: [String]; let value: String; let prefix: String; let suffix: String }
-    struct Header { let line: Int; let path: [String] }
-    struct Document { let lines: [String]; let newline: String; let entries: [Entry]; let headers: [Header] }
+    // A line slot contains one complete statement, including any array line
+    // breaks. All editing/redaction paths replace that slot as a unit.
+    struct Entry { let line: Int; let sourceLine: Int; let path: [String]; let value: String; let prefix: String; let suffix: String }
+    struct Header { let line: Int; let sourceLine: Int; let path: [String] }
+    struct Document { let lines: [String]; let endings: [String]; let newline: String; let entries: [Entry]; let headers: [Header] }
 
-    static func unsupported() -> ConfigurationManager.Failure {
-        .init(status: 422, code: "unsupported_configuration", message: "Codex 配置包含暂不支持或无效的 TOML 格式，未作修改。")
+    static func unsupported(line: Int? = nil) -> ConfigurationManager.Failure {
+        let location = line.map { "（第 \($0) 行）" } ?? ""
+        return .init(status: 422, code: "unsupported_configuration", message: "Codex 配置包含暂不支持的 TOML 结构\(location)，未作修改。")
+    }
+
+    static func invalid(line: Int) -> ConfigurationManager.Failure {
+        .init(status: 422, code: "invalid_toml", message: "Codex 配置的 TOML 语法无效（第 \(line) 行），未作修改。")
     }
 
     static func parse(_ data: Data?) throws -> Document {
         let source: String
         if let data {
-            guard let string = String(data: data, encoding: .utf8), !string.hasPrefix("\u{FEFF}") else { throw unsupported() }
+            guard let string = String(data: data, encoding: .utf8), !string.hasPrefix("\u{FEFF}") else { throw invalid(line: 1) }
             source = string
         } else { source = "" }
         let newline = source.contains("\r\n") ? "\r\n" : "\n"
-        guard !source.replacingOccurrences(of: "\r\n", with: "").contains("\r") else { throw unsupported() }
-        var lines = source.components(separatedBy: newline)
-        if lines.last == "" { lines.removeLast() }
+        var parser = Parser(source)
+        var lines: [String] = []
+        var endings: [String] = []
         var section: [String] = []
         var entries: [Entry] = []
         var headers: [Header] = []
         var assigned = Set<String>()
         var sections = Set<String>()
-        for (index, line) in lines.enumerated() {
-            var parser = Parser(line)
+        while !parser.atEnd {
+            let index = lines.count, start = parser.index, sourceLine = parser.line
             parser.whitespace()
-            if parser.atEnd || parser.peek == "#" { continue }
-            if parser.peek == "[" {
-                parser.advance()
-                guard parser.peek != "[" else { throw unsupported() }
+            if parser.atEnd || parser.isNewline || parser.peek == "#" {
+                try parser.finish()
+            } else if parser.take("[") {
+                guard parser.peek != "[" else { throw unsupported(line: sourceLine) }
                 section = try parser.path()
                 parser.whitespace()
-                guard parser.take("]") else { throw unsupported() }
+                guard parser.take("]") else { throw parser.invalid() }
                 try parser.finish()
-                guard sections.insert(identity(section)).inserted else { throw unsupported() }
-                headers.append(Header(line: index, path: section))
+                guard sections.insert(identity(section)).inserted else { throw invalid(line: sourceLine) }
+                headers.append(Header(line: index, sourceLine: sourceLine, path: section))
             } else {
                 let keys = try parser.path()
                 parser.whitespace()
-                guard parser.take("=") else { throw unsupported() }
+                guard parser.take("=") else { throw parser.invalid() }
                 parser.whitespace()
-                let start = parser.index
+                let valueStart = parser.index
                 try parser.value()
-                let value = String(parser.characters[start..<parser.index])
-                let prefix = String(parser.characters[..<start])
-                let suffix = String(parser.characters[parser.index...])
+                let valueEnd = parser.index
                 try parser.finish()
                 let full = section + keys
-                guard assigned.insert(identity(full)).inserted else { throw unsupported() }
-                // Prefix assignments (inline tables / dotted keys) could collide
-                // with an owned table. Refuse them instead of guessing semantics.
-                entries.append(Entry(line: index, path: full, value: value, prefix: prefix, suffix: suffix))
+                guard assigned.insert(identity(full)).inserted else { throw invalid(line: sourceLine) }
+                entries.append(Entry(line: index, sourceLine: sourceLine, path: full,
+                                     value: String(parser.characters[valueStart..<valueEnd]),
+                                     prefix: String(parser.characters[start..<valueStart]),
+                                     suffix: String(parser.characters[valueEnd..<parser.index])))
             }
+            lines.append(String(parser.characters[start..<parser.index]))
+            endings.append(parser.isNewline ? String(parser.peek!) : "")
+            if parser.isNewline { parser.advance() }
         }
         for entry in entries {
             for end in 1..<entry.path.count {
-                guard !assigned.contains(identity(Array(entry.path.prefix(end)))) else { throw unsupported() }
+                guard !assigned.contains(identity(Array(entry.path.prefix(end)))) else { throw invalid(line: entry.sourceLine) }
             }
         }
         for header in headers {
             for end in 1...header.path.count {
-                guard !assigned.contains(identity(Array(header.path.prefix(end)))) else { throw unsupported() }
+                guard !assigned.contains(identity(Array(header.path.prefix(end)))) else { throw invalid(line: header.sourceLine) }
             }
         }
-        return Document(lines: lines, newline: newline, entries: entries, headers: headers)
+        return Document(lines: lines, endings: endings, newline: newline, entries: entries, headers: headers)
     }
 
     static func edit(_ data: Data?, key: String, endpoint: String, model: String?) throws -> Data {
@@ -557,20 +566,20 @@ enum CodexConfigurationEditor {
                       "experimental_bearer_token = " + quote(key), "requires_openai_auth = false"]
         let firstHeader = headers.first?.line ?? lines.count
         let removed = Set(providerEntries.map(\.line))
-        var output: [String] = []
+        var output: [(text: String, ending: String)] = []
         for index in 0...lines.count {
-            if index == firstHeader { output.append(contentsOf: root) }
+            if index == firstHeader { output.append(contentsOf: root.map { ($0, newline) }) }
             if index == lines.count { break }
             if removed.contains(index) { continue }
-            output.append(replacements[index] ?? lines[index])
-            if ownedHeaders.first?.line == index { output.append(contentsOf: values) }
+            output.append((replacements[index] ?? lines[index], document.endings[index]))
+            if ownedHeaders.first?.line == index { output.append(contentsOf: values.map { ($0, newline) }) }
         }
         if ownedHeaders.isEmpty {
-            if !output.isEmpty && output.last != "" { output.append("") }
-            output.append("[model_providers.conpera_switch]")
-            output.append(contentsOf: values)
+            if !output.isEmpty && output.last?.text != "" { output.append(("", newline)) }
+            output.append(("[model_providers.conpera_switch]", newline))
+            output.append(contentsOf: values.map { ($0, newline) })
         }
-        return Data((output.joined(separator: newline) + newline).utf8)
+        return Data(render(output, newline: newline).utf8)
     }
 
     static func string(_ value: String) throws -> String {
@@ -581,7 +590,15 @@ enum CodexConfigurationEditor {
     }
 
     static func replacing(_ document: Document, values: [Int: String]) -> String {
-        document.lines.enumerated().map { index, line in values[index] ?? line }.joined(separator: document.newline) + document.newline
+        document.lines.enumerated().map { index, line in (values[index] ?? line) + document.endings[index] }.joined()
+    }
+
+    private static func render(_ lines: [(text: String, ending: String)], newline: String) -> String {
+        lines.enumerated().map { index, line in
+            // An unterminated final statement needs a separator only when a new
+            // statement is inserted after it. Preserve all existing terminators.
+            line.text + (line.ending.isEmpty && index < lines.count - 1 ? newline : line.ending)
+        }.joined()
     }
 
     static func assignment(_ entry: Entry, value: String) -> String {
@@ -595,14 +612,14 @@ enum CodexConfigurationEditor {
         let roots = document.entries.filter { $0.path.count == 1 && updates.keys.contains($0.path[0]) }
         let removed = Set(roots.map(\.line))
         let firstHeader = document.headers.first?.line ?? document.lines.count
-        var output: [String] = []
+        var output: [(text: String, ending: String)] = []
         for index in 0...document.lines.count {
             if index == firstHeader {
-                for key in updates.keys.sorted() { if let value = updates[key]! { output.append(key + " = " + value) } }
+                for key in updates.keys.sorted() { if let value = updates[key]! { output.append((key + " = " + value, document.newline)) } }
             }
-            if index < document.lines.count && !removed.contains(index) { output.append(document.lines[index]) }
+            if index < document.lines.count && !removed.contains(index) { output.append((document.lines[index], document.endings[index])) }
         }
-        return output.joined(separator: document.newline) + document.newline
+        return render(output, newline: document.newline)
     }
 
     static func containsSensitiveValues(_ source: String, matching predicate: (String) -> Bool) throws -> Bool {
@@ -623,16 +640,36 @@ enum CodexConfigurationEditor {
     private struct Parser {
         let characters: [Character]
         var index = 0
+        var line = 1
         var keysAndStrings: [String] = []
         init(_ text: String) { characters = Array(text) }
         var atEnd: Bool { index >= characters.count }
         var peek: Character? { atEnd ? nil : characters[index] }
-        mutating func advance() { index += 1 }
+        var isNewline: Bool { peek == "\n" || peek == "\r\n" }
+        func invalid() -> ConfigurationManager.Failure { CodexConfigurationEditor.invalid(line: line) }
+        mutating func advance() { if isNewline { line += 1 }; index += 1 }
         mutating func take(_ character: Character) -> Bool {
             guard peek == character else { return false }; advance(); return true
         }
         mutating func whitespace() { while peek == " " || peek == "\t" { advance() } }
-        mutating func finish() throws { whitespace(); guard atEnd || peek == "#" else { throw unsupported() } }
+        mutating func comment() throws {
+            guard take("#") else { return }
+            while !atEnd && !isNewline {
+                guard let character = peek, character.unicodeScalars.allSatisfy({ $0.value >= 32 && $0.value != 127 || $0.value == 9 }) else { throw invalid() }
+                advance()
+            }
+        }
+        mutating func finish() throws {
+            whitespace(); try comment()
+            guard atEnd || isNewline else { throw invalid() }
+        }
+        mutating func arrayWhitespace() throws {
+            while true {
+                whitespace(); try comment()
+                guard isNewline else { return }
+                advance()
+            }
+        }
 
         mutating func path() throws -> [String] {
             var components: [String] = []
@@ -642,7 +679,7 @@ enum CodexConfigurationEditor {
                 else {
                     let start = index
                     while let character = peek, character.isASCII && (character.isLetter || character.isNumber || character == "_" || character == "-") { advance() }
-                    guard index > start else { throw unsupported() }
+                    guard index > start else { throw invalid() }
                     components.append(String(characters[start..<index]))
                 }
                 whitespace()
@@ -651,17 +688,18 @@ enum CodexConfigurationEditor {
         }
 
         mutating func string() throws -> String {
-            guard let delimiter = peek, delimiter == "\"" || delimiter == "'" else { throw unsupported() }
+            guard let delimiter = peek, delimiter == "\"" || delimiter == "'" else { throw invalid() }
             advance()
             // Triple-quoted strings are deliberately outside the supported subset.
-            if index + 1 < characters.count, characters[index] == delimiter, characters[index + 1] == delimiter { throw unsupported() }
+            if index + 1 < characters.count, characters[index] == delimiter, characters[index + 1] == delimiter { throw unsupported(line: line) }
             var output = ""
             while let character = peek {
+                guard !isNewline else { throw invalid() }
                 advance()
                 if character == delimiter { return output }
-                guard character.unicodeScalars.allSatisfy({ $0.value >= 32 && $0.value != 127 || $0.value == 9 }) else { throw unsupported() }
+                guard character.unicodeScalars.allSatisfy({ $0.value >= 32 && $0.value != 127 || $0.value == 9 }) else { throw invalid() }
                 if delimiter == "\"" && character == "\\" {
-                    guard let escape = peek else { throw unsupported() }
+                    guard let escape = peek else { throw invalid() }
                     advance()
                     switch escape {
                     case "\"", "\\": output.append(escape)
@@ -672,29 +710,29 @@ enum CodexConfigurationEditor {
                     case "r": output.append("\r")
                     case "u", "U":
                         let count = escape == "u" ? 4 : 8
-                        guard index + count <= characters.count else { throw unsupported() }
+                        guard index + count <= characters.count else { throw invalid() }
                         let digits = String(characters[index..<(index + count)])
-                        guard digits.allSatisfy({ $0.isASCII && $0.isHexDigit }), let scalar = UInt32(digits, radix: 16).flatMap(UnicodeScalar.init) else { throw unsupported() }
+                        guard digits.allSatisfy({ $0.isASCII && $0.isHexDigit }), let scalar = UInt32(digits, radix: 16).flatMap(UnicodeScalar.init) else { throw invalid() }
                         output.unicodeScalars.append(scalar); index += count
-                    default: throw unsupported()
+                    default: throw invalid()
                     }
                 } else { output.append(character) }
             }
-            throw unsupported()
+            throw invalid()
         }
 
         mutating func value(depth: Int = 0) throws {
-            guard depth < 32 else { throw unsupported() }
+            guard depth < 32 else { throw unsupported(line: line) }
             whitespace()
             if peek == "\"" || peek == "'" { keysAndStrings.append(try string()); return }
             if take("[") {
-                whitespace()
+                try arrayWhitespace()
                 if take("]") { return }
                 while true {
-                    try value(depth: depth + 1); whitespace()
+                    try value(depth: depth + 1); try arrayWhitespace()
                     if take("]") { return }
-                    guard take(",") else { throw unsupported() }
-                    whitespace()
+                    guard take(",") else { throw invalid() }
+                    try arrayWhitespace()
                     if take("]") { return }
                 }
             }
@@ -705,18 +743,18 @@ enum CodexConfigurationEditor {
                 while true {
                     let key = try path()
                     keysAndStrings.append(contentsOf: key)
-                    guard keys.insert(identity(key)).inserted, take("=") else { throw unsupported() }
+                    guard keys.insert(identity(key)).inserted, take("=") else { throw invalid() }
                     try value(depth: depth + 1); whitespace()
                     if take("}") { return }
-                    guard take(",") else { throw unsupported() }
+                    guard take(",") else { throw invalid() }
                     whitespace()
-                    guard peek != "}" else { throw unsupported() }
+                    guard peek != "}" else { throw invalid() }
                 }
             }
             let start = index
-            while let character = peek, ![" ", "\t", "#", ",", "]", "}"].contains(character) { advance() }
+            while let character = peek, ![" ", "\t", "\n", "\r\n", "#", ",", "]", "}"].contains(character) { advance() }
             let token = String(characters[start..<index])
-            guard !token.isEmpty else { throw unsupported() }
+            guard !token.isEmpty else { throw invalid() }
             if ["true", "false", "inf", "+inf", "-inf", "nan", "+nan", "-nan"].contains(token) { return }
             let patterns = [
                 "^[+-]?(0|[1-9](?:_?[0-9])*)$", "^0x[0-9A-Fa-f](?:_?[0-9A-Fa-f])*$",
@@ -726,7 +764,7 @@ enum CodexConfigurationEditor {
                 "^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})?)?$",
                 "^[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?$",
             ]
-            guard patterns.contains(where: { token.range(of: $0, options: .regularExpression) != nil }) else { throw unsupported() }
+            guard patterns.contains(where: { token.range(of: $0, options: .regularExpression) != nil }) else { throw invalid() }
         }
     }
 }

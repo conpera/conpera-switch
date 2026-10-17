@@ -4,14 +4,14 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 ## 安装 1.2
 
-下载 [Conpera Switch 1.2.1](https://github.com/conpera/conpera-switch/releases/tag/v1.2.1) 的 `Conpera-Switch-1.2.1-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
+下载 [Conpera Switch 1.2.2](https://github.com/conpera/conpera-switch/releases/tag/v1.2.2) 的 `Conpera-Switch-1.2.2-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
 
 - 适用于 Apple Silicon，要求 macOS 13 或更高版本。运行应用无需安装 Node.js。
 - 当前安装包使用 ad-hoc 签名，尚未完成 Developer ID 签名与 Apple 公证，macOS 可能阻止首次启动。
 - 1.0 使用独立应用标识 `ai.conpera.switch`，与旧 Beta / Demo 可共存；请在正式版重新登录。
 - 线上接口向所有状态正常的 Conpera 用户与管理员开放；禁用账户和未知角色无法授权。
 
-1.2.1 将 Codex 常用设置精简为模型、思考强度和上下文窗口；其他设置仍可在配置原文中编辑。支持应用内检查更新、下载、签名校验和安装重启。
+1.2.2 修复合法的 TOML 多行数组阻止 Codex 配置读取、编辑和切换的问题，保留数组顺序、注释及换行格式。语法错误单独提示行号，不回显敏感值。1.2.0 及以上版本可在应用内检查更新并升级。
 
 ## 使用
 
@@ -44,7 +44,7 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 - 保存前校验格式、检查文件是否在外部变化；保存后读回核验。可以撤销上次保存，恢复之前的文件内容和权限。编辑期间的未保存修改会在关闭或重新读取前提醒。
 - 设置仅写入本机用户配置；保存后重启对应客户端。项目配置、环境变量、管理员策略和模型能力可能影响实际生效。应用未代替 CLI 验证每种模型与参数组合。
 
-支持 UTF-8 配置，编辑上限为 512 KiB。Codex 使用保守的 TOML 编辑器，目前支持标量、单行数组、内联表及普通表；多行值和数组表会明确拒绝，保留原文件。Claude Code 原文保存时会规范化 JSON 缩进和键顺序。
+支持 UTF-8 配置，编辑上限为 512 KiB。Codex 使用保守的 TOML 编辑器，支持标量、单行及多行数组、内联表和普通表。数组可包含注释、空行、尾随逗号和嵌套数组；无关配置保留顺序、注释及 LF / CRLF 格式。多行字符串和数组表仍会提示暂不支持；语法错误单独提示行号，不回显配置值，原文件保持不变。Claude Code 原文保存时会规范化 JSON 缩进和键顺序。
 
 参数依据 [Codex 配置参考](https://developers.openai.com/codex/config-reference)、[Claude Code 设置参考](https://code.claude.com/docs/en/settings-reference)和[环境变量参考](https://code.claude.com/docs/en/env-vars)。
 
@@ -57,7 +57,7 @@ npm ci
 npm run package:mac
 ```
 
-输出在 `release/1.2.1/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
+输出在 `release/1.2.2/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
 
 定向验证：
 
