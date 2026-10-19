@@ -2,6 +2,8 @@
 
 # 当前验证入口
 
+2026-10-19 安装包 1.2.3：在 1.2.2 的最新源码上合入浅色拖拽安装窗口，固定应用、Applications 图标及方向箭头的位置。`DEVELOPER_DIR=/Library/Developer/CommandLineTools npm run package:mac:release` 完成前端与原生构建、DMG 校验、应用严格验签和 Sparkle 更新源签名；`npm run test:configuration` 的 176 项隔离检查通过。成品 DMG 重新挂载后确认版本为 1.2.3、包含背景与 Finder 布局，原生窗口已目视验收。更新源仍使用既有公钥；未写入真实 CLI 配置或执行账户操作。
+
 2026-10-14 卡片悬停调整：移除主界面三张卡片及其图标的悬停位移/旋转，采用网页卡片的光标点阵遮罩。构建、Demo/Beta 打包验签及现有 40 项 Demo 浏览器检查通过；读取三张卡片悬停前后的坐标与 transform，位置保持一致。效果层不接收点击，移出清除激活状态；验证与产物记录在 `output/pixel-hover-20261014/`。欢迎页同时保留较小的「conpera switch」标题。
 
 2026-10-14 Logo 对齐：`public/favicon.svg` 与线上 `https://conpera.ai/favicon-bb816b682cfb3181.svg` 字节一致（SHA-256 `bb816b682cfb3181de6d959b5f2af8394ede38b64284ecbe516d69ab2e601520`）。界面和 macOS 图标生成共用此文件。

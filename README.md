@@ -4,7 +4,7 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 ## 安装 1.2
 
-下载 [Conpera Switch 1.2.2](https://github.com/conpera/conpera-switch/releases/tag/v1.2.2) 的 `Conpera-Switch-1.2.2-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
+下载 [Conpera Switch 1.2.3](https://github.com/conpera/conpera-switch/releases/tag/v1.2.3) 的 `Conpera-Switch-1.2.3-mac-arm64.dmg`，打开后将 **Conpera Switch** 拖入 **Applications（应用程序）**。也提供 ZIP 和 SHA-256 校验文件。
 
 - 适用于 Apple Silicon，要求 macOS 13 或更高版本。运行应用无需安装 Node.js。
 - 当前安装包使用 ad-hoc 签名，尚未完成 Developer ID 签名与 Apple 公证，macOS 可能阻止首次启动。
@@ -12,6 +12,8 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 - 线上接口向所有状态正常的 Conpera 用户与管理员开放；禁用账户和未知角色无法授权。
 
 1.2.2 修复合法的 TOML 多行数组阻止 Codex 配置读取、编辑和切换的问题，保留数组顺序、注释及换行格式。语法错误单独提示行号，不回显敏感值。1.2.0 及以上版本可在应用内检查更新并升级。
+
+1.2.3 将简洁拖拽安装界面纳入正式打包流程：浅色背景、安装引导与方向箭头，应用和 Applications 图标位置固定。保留 1.2.2 的多行 TOML 数组修复。
 
 ## 使用
 
@@ -50,14 +52,16 @@ Conpera Switch 是开源的 macOS 应用，用于连接 Conpera 账户、查看�
 
 ## 从源码构建
 
-需要 macOS、Node.js 22+ 和 Xcode Command Line Tools。构建架构与当前 Node 进程架构一致；已交付安装包为 arm64。
+需要 macOS、Node.js 22+ 和 Xcode Command Line Tools。DMG 布局由 Finder 保存，打包时需要已登录的图形桌面，并允许构建终端控制 Finder。构建架构与当前 Node 进程架构一致；已交付安装包为 arm64。
 
 ```bash
 npm ci
 npm run package:mac
 ```
 
-输出在 `release/1.2.2/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
+输出在 `release/1.2.3/`，包含应用、DMG、ZIP、`SHA256SUMS` 和发行清单。`npm run build:mac` 仅构建正式应用。第三方许可证随应用资源打包。正式构建会下载并核对固定 SHA-256 的 Sparkle 官方发行包；下载缓存位于忽略的 `output/vendor`。
+
+DMG 使用浅色拖拽安装窗口，背景包含普通和 Retina 两种分辨率。仅调整安装窗口时，可执行 `node scripts/package-mac.mjs` 复用版本匹配的已构建应用；对外发布仍需按下文生成签名更新源。
 
 定向验证：
 
